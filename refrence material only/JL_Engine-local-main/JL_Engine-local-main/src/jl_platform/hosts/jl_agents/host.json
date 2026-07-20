@@ -1,0 +1,6 @@
+{
+  "name": "my-computer",
+  "description": "JL agents compatibility host adapter using JL Platform core.",
+  "privacy_mode": "local",
+  "tools": ["local_action"]
+}

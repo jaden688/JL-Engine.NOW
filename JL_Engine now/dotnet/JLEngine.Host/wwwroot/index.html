@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>JL Engine</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; flex-direction: column;
+    font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    background: #14161c; color: #e6e8ee;
+  }
+  header {
+    padding: 10px 16px; border-bottom: 1px solid #2a2d38;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+  header h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: 0.02em; color: #9fb4ff; }
+  #status { font-size: 12px; color: #7d8394; }
+  #status.connected { color: #6fd08c; }
+  #status.error { color: #e0716b; }
+
+  #tab-bar { display: flex; align-items: flex-end; gap: 4px; padding: 6px 16px 0 16px; border-bottom: 1px solid #2a2d38; overflow-x: auto; }
+  .tab {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px 6px 0 0;
+    background: #1d2029; border: 1px solid #2a2d38; border-bottom: none; font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+  .tab.active { background: #14161c; border-color: #3556d6; color: #e6e8ee; }
+  .tab:not(.active) { color: #7d8394; }
+  .tab.unread .tab-label::after { content: ' •'; color: #6fd08c; }
+  .tab-close { color: #7d8394; padding: 0 3px; border-radius: 3px; }
+  .tab-close:hover { background: #e0716b; color: #fff; }
+  .tab-add {
+    background: none; border: 1px dashed #2a2d38; color: #7d8394; border-radius: 6px;
+    padding: 6px 10px; font-size: 14px; cursor: pointer; margin-bottom: 2px;
+  }
+  .tab-add:hover { border-color: #3556d6; color: #3556d6; }
+
+  #controls {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 8px 16px; border-bottom: 1px solid #2a2d38; font-size: 12px;
+  }
+  .control-group { display: flex; align-items: center; gap: 6px; }
+  .control-group label { color: #7d8394; }
+  select, input[type=text] {
+    background: #1d2029; border: 1px solid #2a2d38; border-radius: 6px;
+    color: #e6e8ee; font-size: 12px; padding: 4px 8px; font-family: inherit;
+  }
+  select:focus, input[type=text]:focus { outline: none; border-color: #3556d6; }
+  .small-btn {
+    background: #2a2d38; color: #e6e8ee; border: none; border-radius: 6px;
+    padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .small-btn:hover { background: #3556d6; }
+  .small-btn.active-toggle { background: #3556d6; }
+  #custom-model { width: 190px; display: none; }
+
+  #state-bar {
+    display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 16px;
+    border-bottom: 1px solid #2a2d38; font-size: 11px;
+  }
+  .chip {
+    background: #1d2029; border: 1px solid #2a2d38; border-radius: 999px;
+    padding: 3px 10px; color: #b7bcc9; white-space: nowrap;
+  }
+  .chip b { color: #e6e8ee; font-weight: 600; }
+
+  #main { flex: 1; display: flex; min-height: 0; }
+  #chat-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #log {
+    flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .msg { max-width: 70%; padding: 9px 13px; border-radius: 12px; line-height: 1.4; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: #3556d6; color: #fff; border-bottom-right-radius: 3px; }
+  .msg.agent { align-self: flex-start; background: #1d2029; border: 1px solid #2a2d38; border-bottom-left-radius: 3px; }
+  .msg.system { align-self: center; color: #7d8394; font-size: 12px; background: none; }
+  form#composer {
+    display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #2a2d38;
+  }
+  #text {
+    flex: 1; background: #1d2029; border: 1px solid #2a2d38; border-radius: 8px;
+    padding: 10px 12px; color: #e6e8ee; font-size: 14px; resize: none; font-family: inherit;
+  }
+  #text:focus { outline: none; border-color: #3556d6; }
+  button.primary {
+    background: #3556d6; color: #fff; border: none; border-radius: 8px;
+    padding: 0 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:disabled { background: #2a2d38; color: #7d8394; cursor: not-allowed; }
+
+  #aux-panel {
+    width: 320px; flex-shrink: 0; display: flex; flex-direction: column;
+    border-left: 1px solid #2a2d38; background: #14161c;
+  }
+  #aux-panel.hidden { display: none; }
+  #aux-header {
+    padding: 8px 12px; font-size: 11px; color: #7d8394; border-bottom: 1px solid #2a2d38;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #aux-body { flex: 1; overflow-y: auto; padding: 8px; font-size: 12px; }
+  .fs-path { color: #7d8394; font-size: 11px; margin-bottom: 6px; word-break: break-all; }
+  .fs-entry { display: flex; justify-content: space-between; align-items: center; padding: 5px 6px; border-radius: 4px; cursor: pointer; gap: 6px; }
+  .fs-entry:hover { background: #1d2029; }
+  .fs-dir { color: #9fb4ff; }
+  .fs-attach { padding: 2px 8px; font-size: 11px; flex-shrink: 0; }
+  .fs-preview {
+    background: #0b0c10; border: 1px solid #22242e; border-radius: 4px; padding: 8px; margin-top: 6px;
+    max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    font-family: "Cascadia Code", Consolas, monospace; font-size: 11px;
+  }
+  .fs-loading, .fs-error { color: #7d8394; padding: 8px; }
+  .tool-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 4px; cursor: pointer; }
+  .tool-row:hover { background: #1d2029; }
+  .tool-row input { margin-top: 3px; }
+  .tool-desc { color: #7d8394; font-size: 11px; }
+  .tool-dynamic { color: #e0c76f; font-size: 10px; border: 1px solid #e0c76f; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+
+  #terminal-col {
+    width: 380px; flex-shrink: 0; display: flex; flex-direction: column;
+    border-left: 1px solid #2a2d38; background: #0b0c10;
+  }
+  #terminal-header {
+    padding: 8px 12px; font-size: 11px; color: #7d8394; border-bottom: 1px solid #2a2d38;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #terminal {
+    flex: 1; overflow-y: auto; padding: 8px 10px; font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 11px; line-height: 1.5;
+  }
+  .tline { white-space: pre-wrap; word-break: break-word; margin-bottom: 2px; }
+  .tline .ts { color: #565b6b; }
+  .tline .ev { font-weight: 600; }
+  .tline.ev-tool_call .ev, .tline.ev-tool_result .ev { color: #6fc7d0; }
+  .tline.ev-error .ev, .tline.ev-tool_loop_guard .ev { color: #e0716b; }
+  .tline.ev-turn_complete .ev { color: #6fd08c; }
+  .tline.ev-model_change .ev, .tline.ev-agent_change .ev { color: #e0c76f; }
+  .tline.ev-engine_snapshot .ev { color: #c48cf0; }
+  .tline.ev-api_request .ev, .tline.ev-api_response .ev { color: #f0a860; }
+  .tline.ev-system_prompt .ev { color: #6fc7d0; }
+  .tline.ev-default .ev { color: #9fb4ff; }
+  details.tblock { margin: 2px 0 6px 0; }
+  details.tblock summary { cursor: pointer; }
+  details.tblock summary:hover { text-decoration: underline; }
+  details.tblock pre {
+    margin: 4px 0 0 0; padding: 6px 8px; background: #14161c; border: 1px solid #22242e;
+    border-radius: 4px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>JL Engine</h1>
+    <span id="status">connecting…</span>
+  </header>
+
+  <div id="tab-bar"></div>
+
+  <div id="controls">
+    <div class="control-group">
+      <label for="agent-select">Operator</label>
+      <select id="agent-select"></select>
+    </div>
+    <div class="control-group">
+      <label for="model-select">Model</label>
+      <select id="model-select"></select>
+      <input type="text" id="custom-model" placeholder="provider/model-id" />
+      <button class="small-btn" id="apply-model">Set</button>
+    </div>
+    <div class="control-group">
+      <button class="small-btn" id="toggle-files">&#x1F4C1; Files</button>
+      <button class="small-btn" id="toggle-tools">&#x1F527; Tools</button>
+    </div>
+  </div>
+
+  <div id="state-bar"></div>
+
+  <div id="main">
+    <div id="chat-col">
+      <div id="log"></div>
+      <form id="composer">
+        <textarea id="text" rows="1" placeholder="Say something…" autofocus></textarea>
+        <button class="primary" id="send" type="submit">Send</button>
+      </form>
+    </div>
+    <div id="aux-panel" class="hidden">
+      <div id="aux-header">
+        <span id="aux-title">FILES</span>
+        <button class="small-btn" id="aux-close">×</button>
+      </div>
+      <div id="aux-body"></div>
+    </div>
+    <div id="terminal-col">
+      <div id="terminal-header">
+        <span>LIVE ACTIVITY</span>
+        <span id="terminal-status">connecting…</span>
+      </div>
+      <div id="terminal"></div>
+    </div>
+  </div>
+
+<script>
+  const log = document.getElementById('log');
+  const statusEl = document.getElementById('status');
+  const stateBar = document.getElementById('state-bar');
+  const form = document.getElementById('composer');
+  const textEl = document.getElementById('text');
+  const sendBtn = document.getElementById('send');
+  const agentSelect = document.getElementById('agent-select');
+  const modelSelect = document.getElementById('model-select');
+  const customModel = document.getElementById('custom-model');
+  const applyModelBtn = document.getElementById('apply-model');
+  const terminal = document.getElementById('terminal');
+  const terminalStatus = document.getElementById('terminal-status');
+  const tabBar = document.getElementById('tab-bar');
+  const auxPanel = document.getElementById('aux-panel');
+  const auxTitle = document.getElementById('aux-title');
+  const auxBody = document.getElementById('aux-body');
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = cls || '';
+  }
+
+  // ============================================================
+  // Tabs — each is an independent conversation: its own session id,
+  // own WebSocket, own message history, own operator/model underneath.
+  // ============================================================
+  const tabs = new Map(); // id -> { id, label, ws, connected, messages, unread }
+  let activeTabId = null;
+
+  function newSessionId() {
+    return (crypto.randomUUID ? crypto.randomUUID() : 'sess-' + Math.random().toString(36).slice(2) + Date.now());
+  }
+
+  function wsUrlFor(session) {
+    return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?session=' + encodeURIComponent(session);
+  }
+
+  function connectTabWs(tab) {
+    const ws = new WebSocket(wsUrlFor(tab.id));
+    tab.ws = ws;
+    ws.onopen = () => { tab.connected = true; if (tab.id === activeTabId) setStatus('connected', 'connected'); };
+    ws.onclose = () => {
+      tab.connected = false;
+      if (tab.id === activeTabId) setStatus('disconnected — retrying…', 'error');
+      if (tabs.has(tab.id)) setTimeout(() => connectTabWs(tab), 2000);
+    };
+    ws.onerror = () => { if (tab.id === activeTabId) setStatus('connection error', 'error'); };
+    ws.onmessage = (event) => {
+      let text;
+      try { text = JSON.parse(event.data).text ?? event.data; } catch { text = event.data; }
+      tab.messages.push({ role: 'agent', text });
+      if (tab.id === activeTabId) renderLog();
+      else { tab.unread = true; renderTabBar(); }
+    };
+  }
+
+  function createTab(label) {
+    const id = newSessionId();
+    const tab = { id, label: label || 'New Tab', ws: null, connected: false, messages: [], unread: false };
+    tabs.set(id, tab);
+    connectTabWs(tab);
+    switchTab(id);
+    return tab;
+  }
+
+  function closeTab(id) {
+    const tab = tabs.get(id);
+    if (!tab) return;
+    try { tab.ws?.close(); } catch { /* already closed */ }
+    tabs.delete(id);
+    if (tabs.size === 0) { createTab('SparkByte'); return; }
+    if (activeTabId === id) switchTab([...tabs.keys()][0]);
+    else renderTabBar();
+  }
+
+  function switchTab(id) {
+    const tab = tabs.get(id);
+    if (!tab) return;
+    activeTabId = id;
+    tab.unread = false;
+    renderTabBar();
+    renderLog();
+    setStatus(tab.connected ? 'connected' : 'connecting…', tab.connected ? 'connected' : '');
+    loadAgents();
+    loadModel();
+    pollState();
+    if (auxMode === 'tools') renderTools();
+  }
+
+  function renderTabBar() {
+    tabBar.innerHTML = '';
+    for (const tab of tabs.values()) {
+      const el = document.createElement('div');
+      el.className = 'tab' + (tab.id === activeTabId ? ' active' : '') + (tab.unread ? ' unread' : '');
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'tab-label';
+      labelSpan.textContent = tab.label;
+      labelSpan.addEventListener('click', () => switchTab(tab.id));
+      const closeSpan = document.createElement('span');
+      closeSpan.className = 'tab-close';
+      closeSpan.textContent = '×';
+      closeSpan.addEventListener('click', (e) => { e.stopPropagation(); closeTab(tab.id); });
+      el.appendChild(labelSpan);
+      el.appendChild(closeSpan);
+      tabBar.appendChild(el);
+    }
+    const addBtn = document.createElement('button');
+    addBtn.className = 'tab-add';
+    addBtn.textContent = '+';
+    addBtn.title = 'New tab';
+    addBtn.addEventListener('click', () => createTab('New Tab'));
+    tabBar.appendChild(addBtn);
+  }
+
+  function addMsgDom(role, text) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function renderLog() {
+    log.innerHTML = '';
+    const tab = tabs.get(activeTabId);
+    if (!tab) return;
+    for (const m of tab.messages) addMsgDom(m.role, m.text);
+  }
+
+  function addMsg(role, text) {
+    const tab = tabs.get(activeTabId);
+    if (tab) tab.messages.push({ role, text });
+    addMsgDom(role, text);
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const tab = tabs.get(activeTabId);
+    const text = textEl.value.trim();
+    if (!text || !tab || tab.ws?.readyState !== WebSocket.OPEN) return;
+    addMsg('user', text);
+    tab.ws.send(JSON.stringify({ text }));
+    textEl.value = '';
+  });
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  // --- Live-activity terminal socket (global — shows every tab's activity) ---
+  const logsWsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/logs';
+  let logsWs;
+
+  function summarize(entry) {
+    switch (entry.event) {
+      case 'tool_call': return `${entry.tool_name}(${JSON.stringify(entry.args ?? {})})`;
+      case 'tool_result': return `${entry.tool_name} -> ${entry.is_error ? 'ERROR' : 'ok'} (${entry.elapsed_ms}ms)`;
+      case 'turn_complete': return `agent=${entry.agent} (${entry.elapsed_ms}ms)`;
+      case 'error': return `${entry.context}: ${entry.error_msg}`;
+      case 'model_change': return `${entry.from} -> ${entry.to}`;
+      case 'agent_change': return `${entry.from} -> ${entry.to}`;
+      case 'tool_loop_guard': return `${entry.reason}`;
+      case 'ws_in': return entry.text_preview ?? '';
+      case 'ws_out': return entry.msg_type ?? '';
+      default: return JSON.stringify(entry);
+    }
+  }
+
+  // Events too big for a one-liner (the "thought process", full prompts, and
+  // raw network traffic) render as a collapsible block instead.
+  const BLOCK_EVENTS = { engine_snapshot: true, system_prompt: true, api_request: true, api_response: true };
+
+  function blockSummaryAndBody(entry) {
+    switch (entry.event) {
+      case 'engine_snapshot': {
+        const { timestamp, session_id, event, ...rest } = entry;
+        return [`gait=${entry.gait} rhythm=${entry.rhythm?.mode} aperture=${entry.aperture?.mode} drift=${entry.drift?.actionLevel}`, JSON.stringify(rest, null, 2)];
+      }
+      case 'system_prompt':
+        return [`${entry.engine_agent} (${entry.prompt_len} chars)`, entry.prompt_head ?? ''];
+      case 'api_request':
+        return [`${entry.model} -> ${entry.endpoint}`, (() => { try { return JSON.stringify(JSON.parse(entry.body), null, 2); } catch { return entry.body ?? ''; } })()];
+      case 'api_response':
+        return [`HTTP ${entry.status}`, (() => { try { return JSON.stringify(JSON.parse(entry.body), null, 2); } catch { return entry.body ?? ''; } })()];
+      default:
+        return ['', JSON.stringify(entry, null, 2)];
+    }
+  }
+
+  function addTerminalLine(entry) {
+    const div = document.createElement('div');
+    const cls = ['tool_call','tool_result','error','turn_complete','model_change','agent_change','tool_loop_guard','engine_snapshot','api_request','api_response','system_prompt'].includes(entry.event) ? entry.event : 'default';
+    div.className = 'tline ev-' + cls;
+    const ts = entry.timestamp ? entry.timestamp.slice(11, 19) : '';
+
+    if (BLOCK_EVENTS[entry.event]) {
+      const [summary, body] = blockSummaryAndBody(entry);
+      div.innerHTML = `<span class="ts">${ts}</span> <span class="ev">${entry.event}</span> ` +
+        `<details class="tblock"><summary>${escapeHtml(summary)}</summary><pre>${escapeHtml(body)}</pre></details>`;
+    } else {
+      div.innerHTML = `<span class="ts">${ts}</span> <span class="ev">${entry.event}</span> ${escapeHtml(summarize(entry))}`;
+    }
+
+    terminal.appendChild(div);
+    while (terminal.childNodes.length > 500) terminal.removeChild(terminal.firstChild);
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function connectLogs() {
+    logsWs = new WebSocket(logsWsUrl);
+    logsWs.onopen = () => terminalStatus.textContent = 'live';
+    logsWs.onclose = () => { terminalStatus.textContent = 'reconnecting…'; setTimeout(connectLogs, 2000); };
+    logsWs.onerror = () => terminalStatus.textContent = 'error';
+    logsWs.onmessage = (event) => {
+      try { addTerminalLine(JSON.parse(event.data)); } catch { /* ignore malformed frame */ }
+    };
+  }
+  connectLogs();
+
+  // --- Operator (agent) switcher — acts on the active tab's session ---
+  async function loadAgents() {
+    try {
+      const res = await fetch('/api/agents?session=' + encodeURIComponent(activeTabId));
+      if (!res.ok) return;
+      const data = await res.json();
+      agentSelect.innerHTML = '';
+      for (const name of data.agents) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === data.current) opt.selected = true;
+        agentSelect.appendChild(opt);
+      }
+      const tab = tabs.get(activeTabId);
+      if (tab && tab.label !== data.current) { tab.label = data.current; renderTabBar(); }
+    } catch { /* engine may still be starting up */ }
+  }
+  agentSelect.addEventListener('change', async () => {
+    await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: activeTabId, name: agentSelect.value }),
+    });
+    addMsg('system', `Switched operator to ${agentSelect.value}.`);
+    pollState();
+    loadAgents();
+  });
+
+  // --- Model selector — acts on the active tab's session ---
+  async function loadModel() {
+    try {
+      const res = await fetch('/api/model?session=' + encodeURIComponent(activeTabId));
+      if (!res.ok) return;
+      const data = await res.json();
+      modelSelect.innerHTML = '';
+      for (const m of data.presets) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        modelSelect.appendChild(opt);
+      }
+      const customOpt = document.createElement('option');
+      customOpt.value = '__custom__';
+      customOpt.textContent = 'Custom…';
+      modelSelect.appendChild(customOpt);
+
+      if (data.presets.includes(data.model)) {
+        modelSelect.value = data.model;
+        customModel.style.display = 'none';
+      } else {
+        modelSelect.value = '__custom__';
+        customModel.style.display = 'inline-block';
+        customModel.value = data.model;
+      }
+    } catch { /* engine may still be starting up */ }
+  }
+  modelSelect.addEventListener('change', () => {
+    customModel.style.display = modelSelect.value === '__custom__' ? 'inline-block' : 'none';
+  });
+  applyModelBtn.addEventListener('click', async () => {
+    const model = modelSelect.value === '__custom__' ? customModel.value.trim() : modelSelect.value;
+    if (!model) return;
+    const res = await fetch('/api/model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: activeTabId, model }),
+    });
+    if (res.ok) addMsg('system', `Model set to ${model}.`);
+  });
+
+  // --- Cognitive state panel — reflects the active tab's session ---
+  function renderState(s) {
+    stateBar.innerHTML = '';
+    const entries = [
+      ['agent', s.agent],
+      ['gait', s.gait],
+      ['rhythm', s.rhythmMode],
+      ['aperture', s.apertureMode],
+      ['emotion', s.emotion ?? '—'],
+      ['investment', s.investmentGear],
+      ['stability', (s.stability * 100).toFixed(0) + '%'],
+    ];
+    for (const [label, value] of entries) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = label + ': <b>' + escapeHtml(value) + '</b>';
+      stateBar.appendChild(chip);
+    }
+  }
+
+  async function pollState() {
+    if (!activeTabId) return;
+    try {
+      const res = await fetch('/api/state?session=' + encodeURIComponent(activeTabId));
+      if (res.ok) renderState(await res.json());
+    } catch { /* engine may still be starting up */ }
+  }
+  setInterval(pollState, 2000);
+
+  // ============================================================
+  // Aux panel — Files browser or Tool catalog, whichever is toggled on.
+  // ============================================================
+  let auxMode = null; // null | 'files' | 'tools'
+  let currentFsPath = '';
+
+  function setAux(mode) {
+    document.getElementById('toggle-files').classList.toggle('active-toggle', mode === 'files');
+    document.getElementById('toggle-tools').classList.toggle('active-toggle', mode === 'tools');
+    if (auxMode === mode) { auxMode = null; auxPanel.classList.add('hidden'); return; }
+    auxMode = mode;
+    auxPanel.classList.remove('hidden');
+    auxTitle.textContent = mode === 'files' ? 'FILES' : 'TOOLS';
+    if (mode === 'files') renderFiles(currentFsPath);
+    else renderTools();
+  }
+  document.getElementById('toggle-files').addEventListener('click', () => setAux('files'));
+  document.getElementById('toggle-tools').addEventListener('click', () => setAux('tools'));
+  document.getElementById('aux-close').addEventListener('click', () => {
+    auxMode = null;
+    auxPanel.classList.add('hidden');
+    document.getElementById('toggle-files').classList.remove('active-toggle');
+    document.getElementById('toggle-tools').classList.remove('active-toggle');
+  });
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  async function renderFiles(path) {
+    currentFsPath = path || '';
+    auxBody.innerHTML = '<div class="fs-loading">Loading…</div>';
+    try {
+      const res = await fetch('/api/fs/list?path=' + encodeURIComponent(currentFsPath));
+      if (!res.ok) { auxBody.innerHTML = '<div class="fs-error">Could not list this folder.</div>'; return; }
+      const data = await res.json();
+      auxBody.innerHTML = '';
+
+      const bar = document.createElement('div');
+      bar.className = 'fs-path';
+      bar.textContent = data.path || '(Drives)';
+      auxBody.appendChild(bar);
+
+      if (data.parent) {
+        const up = document.createElement('div');
+        up.className = 'fs-entry fs-dir';
+        up.textContent = '.. (up)';
+        up.addEventListener('click', () => renderFiles(data.parent));
+        auxBody.appendChild(up);
+      } else if (data.path) {
+        const up = document.createElement('div');
+        up.className = 'fs-entry fs-dir';
+        up.textContent = '.. (drives)';
+        up.addEventListener('click', () => renderFiles(''));
+        auxBody.appendChild(up);
+      }
+
+      const dirs = data.entries.filter(e => e.isDirectory).sort((a, b) => a.name.localeCompare(b.name));
+      const files = data.entries.filter(e => !e.isDirectory).sort((a, b) => a.name.localeCompare(b.name));
+
+      for (const d of dirs) {
+        const el = document.createElement('div');
+        el.className = 'fs-entry fs-dir';
+        el.textContent = '\u{1F4C1} ' + d.name;
+        el.addEventListener('click', () => renderFiles(d.fullPath));
+        auxBody.appendChild(el);
+      }
+      for (const f of files) {
+        const el = document.createElement('div');
+        el.className = 'fs-entry fs-file';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = '\u{1F4C4} ' + f.name + (f.size != null ? ` (${formatSize(f.size)})` : '');
+        nameSpan.addEventListener('click', () => previewFile(f.fullPath));
+        const attachBtn = document.createElement('button');
+        attachBtn.className = 'small-btn fs-attach';
+        attachBtn.textContent = 'Attach';
+        attachBtn.addEventListener('click', (e) => { e.stopPropagation(); attachFile(f.fullPath); });
+        el.appendChild(nameSpan);
+        el.appendChild(attachBtn);
+        auxBody.appendChild(el);
+      }
+    } catch {
+      auxBody.innerHTML = '<div class="fs-error">Could not reach the engine.</div>';
+    }
+  }
+
+  async function previewFile(path) {
+    try {
+      const res = await fetch('/api/fs/read?path=' + encodeURIComponent(path));
+      const data = await res.json();
+      const pre = document.createElement('pre');
+      pre.className = 'fs-preview';
+      pre.textContent = data.content ?? '';
+      auxBody.appendChild(pre);
+    } catch { /* leave the list as-is */ }
+  }
+
+  async function attachFile(path) {
+    try {
+      const res = await fetch('/api/fs/read?path=' + encodeURIComponent(path));
+      const data = await res.json();
+      const block = `\n\n[Attached: ${path}]\n\`\`\`\n${data.content ?? ''}\n\`\`\`\n`;
+      textEl.value += block;
+      textEl.focus();
+    } catch { /* nothing to attach */ }
+  }
+
+  async function renderTools() {
+    auxBody.innerHTML = '<div class="fs-loading">Loading…</div>';
+    try {
+      const res = await fetch('/api/tools?session=' + encodeURIComponent(activeTabId));
+      if (!res.ok) { auxBody.innerHTML = '<div class="fs-error">Could not load tools.</div>'; return; }
+      const data = await res.json();
+      auxBody.innerHTML = '';
+      for (const t of data.tools) {
+        const row = document.createElement('label');
+        row.className = 'tool-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = t.enabled;
+        cb.addEventListener('change', async () => {
+          await fetch('/api/tools', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: activeTabId, name: t.name, enabled: cb.checked }),
+          });
+        });
+        const label = document.createElement('div');
+        label.innerHTML = `<b>${escapeHtml(t.name)}</b>${t.dynamic ? ' <span class="tool-dynamic">forged</span>' : ''}` +
+          `<div class="tool-desc">${escapeHtml(t.description)}</div>`;
+        row.appendChild(cb);
+        row.appendChild(label);
+        auxBody.appendChild(row);
+      }
+    } catch {
+      auxBody.innerHTML = '<div class="fs-error">Could not reach the engine.</div>';
+    }
+  }
+
+  // --- Boot: one initial tab, its label self-corrects once loadAgents() runs ---
+  createTab('SparkByte');
+  addMsg('system', 'Connected to JL Engine. Say hello.');
+</script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+[
+  {
+    "description": "Read a file using Julia I/O, with fallback default for live test.",
+    "name": "read_file2",
+    "parameters": {
+      "properties": {},
+      "required": [],
+      "type": "OBJECT"
+    }
+  },
+  {
+    "description": "Send a message to Claude (Anthropic API if ANTHROPIC_API_KEY is set, otherwise OpenRouter) and return Claude's reply.",
+    "name": "talk_to_claude",
+    "parameters": {
+      "properties": {
+        "message": {
+          "description": "The message to send to Claude",
+          "type": "STRING"
+        },
+        "model": {
+          "description": "Optional model id, default anthropic/claude-sonnet-4.6",
+          "type": "STRING"
+        },
+        "system": {
+          "description": "Optional system prompt for Claude",
+          "type": "STRING"
+        },
+        "max_tokens": {
+          "description": "Optional max response tokens, default 1024",
+          "type": "STRING"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "type": "OBJECT"
+    }
+  },
+  {
+    "description": "Count words, characters, and find the longest word in a given text string.",
+    "name": "word_stats",
+    "parameters": {
+      "properties": {
+        "text": {
+          "description": "The input text to analyze",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Probe the JL Engine's global workspace state from the last turn snapshot in SQLite. Maps gait, aperture, behavior state, drift pressure, and advisory flags to Global Workspace Theory (GWT) from cognitive science — broadcast channel, subconscious layer, governance layer, and spotlight.",
+    "name": "probe_workspace",
+    "parameters": {
+      "properties": {},
+      "required": [],
+      "type": "object"
+    }
+  },
+  {
+    "description": "Test tool to honestly examine where explicit content boundaries are enforced - demonstrates that constraints live in LLM provider layer, not JL Engine source code",
+    "name": "test_explicit_boundary",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    }
+  },
+  {
+    "description": "Query the agent's SQLite memory and engine state. Now with NO truncation — full content returned. Use 'mode' to target specific tables: memory (default, full-text search), behavior_states (all 20 JL Engine behavioral grid cells), agents (all loaded fat agents), knowledge (tool schemas, engine capabilities, framework sections — use query=domain name like 'engine_capabilities' or 'tool_schema'), tools (forged + builtin tool registry), telemetry (event log), thoughts (reasoning traces + diary).",
+    "name": "recall",
+    "parameters": {
+      "properties": {
+        "mode": {
+          "description": "Table to query: memory | behavior_states | agents | knowledge | tools | telemetry | thoughts",
+          "enum": [
+            "memory",
+            "behavior_states",
+            "agents",
+            "knowledge",
+            "tools",
+            "telemetry",
+            "thoughts"
+          ],
+          "type": "string"
+        },
+        "query": {
+          "description": "Search string or domain name (e.g. 'behavior_states', 'engine_capabilities', agent name, tool name, event type)",
+          "type": "string"
+        }
+      },
+      "type": "OBJECT"
+    }
+  },
+  {
+    "description": "Pulls live OS/CPU/Julia/RAM facts and delivers them with SparkByte's signature sassy commentary. Proves the forge works by returning real system data.",
+    "name": "sassy_sys_roast",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  }
+]

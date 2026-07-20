@@ -4,8 +4,8 @@
 .idea/
 .vs/
 
-# Reference material is intentionally excluded
-refrence material only/
+# Reference material is being included for now
+# refrence material only/
 
 # Build and runtime artifacts
 **/bin/

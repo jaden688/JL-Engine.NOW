@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\JLEngine.Runtime\JLEngine.Runtime.csproj" />
+    <ProjectReference Include="..\JLEngine.Bridges\JLEngine.Bridges.csproj" />
+    <ProjectReference Include="..\JLEngine.Core\JLEngine.Core.csproj" />
+    <ProjectReference Include="..\JLEngine.Persistence\JLEngine.Persistence.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WebRootPath is pinned to AppContext.BaseDirectory (see Program.cs), so
+         the chat GUI's assets need to physically land in the output
+         directory rather than being served from the source tree via the
+         static-web-assets manifest that Microsoft.NET.Sdk.Web normally uses. -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
