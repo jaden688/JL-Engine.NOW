@@ -1,0 +1,23 @@
+# Local workspace noise
+.claude/
+.vscode/
+.idea/
+.vs/
+
+# Reference material is intentionally excluded
+refrence material only/
+
+# Build and runtime artifacts
+**/bin/
+**/obj/
+**/out/
+**/.vs/
+**/.idea/
+**/*.user
+**/*.suo
+**/*.cache
+**/*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
