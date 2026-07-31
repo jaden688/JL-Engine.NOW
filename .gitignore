@@ -18,6 +18,24 @@
 **/*.cache
 **/*.tmp
 
+# Runtime data - engine memory, telemetry and billing state.
+# These are generated at runtime and must not be published.
+**/*.db
+**/*.db.bak*
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite
+**/*.sqlite3
+**/data/logs/
+**/full_telemetry.jsonl
+
+# Secrets
+.env
+**/.env
+**/*.pem
+**/*.key
+**/*.pfx
+
 # OS files
 .DS_Store
 Thumbs.db
