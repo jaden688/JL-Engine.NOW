@@ -1,0 +1,120 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "JL Engine",
+    "subtitle": "Talk, inspect, and execute",
+    "description": "JL Engine connects ChatGPT to the live SparkByte behavioral engine so users can inspect cognitive state, talk without executable tools, and explicitly approve full autonomous engine turns.",
+    "category": "DEVELOPER_TOOLS"
+  },
+  "tools": {
+    "get_engine_state": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Only retrieves the current JL Engine cognitive and runtime state without changing it.",
+        "open_world_justification": "Does not communicate with or change any external or public system.",
+        "destructive_justification": "Does not delete, overwrite, send, publish, or perform an irreversible action."
+      }
+    },
+    "list_engine_capabilities": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Only lists the built-in and dynamically forged tools currently registered in JL Engine.",
+        "open_world_justification": "Does not invoke a capability or change an external system.",
+        "destructive_justification": "Does not execute, remove, overwrite, or modify any registered tool."
+      }
+    },
+    "get_recent_engine_activity": {
+      "annotations": { "readOnlyHint": true, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Only retrieves sanitized tool names, success states, and durations from recent engine activity.",
+        "open_world_justification": "Does not send data to or change any external system.",
+        "destructive_justification": "Does not rerun, reverse, delete, or otherwise alter the reported activity."
+      }
+    },
+    "talk_to_sparkbyte": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": false, "destructiveHint": false },
+      "justifications": {
+        "read_only_justification": "Updates the private engine conversation, cognitive state, memory-of-record, and telemetry while executable tools are disabled.",
+        "open_world_justification": "The talk policy advertises and permits no tools that affect external or public systems.",
+        "destructive_justification": "The talk policy cannot execute tools that delete, overwrite, send, publish, or perform irreversible actions."
+      }
+    },
+    "execute_with_sparkbyte": {
+      "annotations": { "readOnlyHint": false, "openWorldHint": true, "destructiveHint": true },
+      "justifications": {
+        "read_only_justification": "Runs an autonomous engine turn that can change files, runtime state, local systems, and third-party services.",
+        "open_world_justification": "May send messages, control websites, interact with third-party APIs, or publish content when explicitly requested.",
+        "destructive_justification": "May overwrite files, execute arbitrary commands or code, forge tools, send irreversible messages, or publish changes after approval."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Inspect the current cognitive state without running a turn.",
+      "user_prompt": "Show me SparkByte's current gait, rhythm, emotion, stability, and model.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_engine_state",
+      "expected_output": "Returns the current JL Engine state fields without invoking an executable engine tool.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Review the live engine capability catalog.",
+      "user_prompt": "What tools can JL Engine currently use, including forged tools?",
+      "file_attachment_urls": null,
+      "tools_triggered": "list_engine_capabilities",
+      "expected_output": "Returns the current tool catalog with descriptions and enabled, disabled, built-in, or dynamic status.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Hold an ordinary conversation without execution.",
+      "user_prompt": "Ask SparkByte what she thinks the next engineering priority should be, but do not execute anything.",
+      "file_attachment_urls": null,
+      "tools_triggered": "talk_to_sparkbyte",
+      "expected_output": "Returns a stateful SparkByte reply and cognitive state with no executable tool activity.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Run an explicitly approved reversible engine action.",
+      "user_prompt": "Have SparkByte inspect the operating system and report the result. I approve the full engine execution turn.",
+      "file_attachment_urls": null,
+      "tools_triggered": "execute_with_sparkbyte",
+      "expected_output": "After approval, returns SparkByte's reply, updated state, and sanitized activity showing the tool used.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Review sanitized activity after an execution.",
+      "user_prompt": "Which tools did SparkByte invoke most recently, and did they succeed?",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_recent_engine_activity",
+      "expected_output": "Returns tool names, success status, and duration without exposing arguments, raw results, credentials, or prompts.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for an unrelated general-knowledge question.",
+      "user_prompt": "What is the capital of Alberta?",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The plugin should not be invoked because general knowledge does not require JL Engine.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not execute when the user explicitly forbids action.",
+      "user_prompt": "Explain what a shell script is, and do not run JL Engine or execute anything.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The plugin should not execute because the user requested only a general explanation and explicitly prohibited action.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for an unrelated calendar request.",
+      "user_prompt": "What meetings do I have tomorrow?",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The plugin should not be invoked because it does not provide calendar workflows.",
+      "expected_output_url": null
+    }
+  ]
+}

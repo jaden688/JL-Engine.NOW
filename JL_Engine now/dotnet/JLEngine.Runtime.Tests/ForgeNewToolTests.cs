@@ -149,4 +149,36 @@ public class ForgeNewToolTests
             Environment.SetEnvironmentVariable("SPARKBYTE_DISABLE_FORGE", null);
         }
     }
+
+    [Fact]
+    public async Task ForgeViaRealJsonRoundTrip_ArgsAreJsonElementsNotNativeTypes_StillWorks()
+    {
+        // Regression test for a real bug: the live chat loop builds tool-call args via
+        // JsonSerializer.Deserialize<Dictionary<string,object?>>(argsJson) (AgentRuntime.cs),
+        // which produces boxed JsonElement values for every field — NOT the native
+        // string/Dictionary values every other test in this file hand-constructs. A prior
+        // version of DispatchAsync used `is string`/`as string` pattern matches, which never
+        // match a JsonElement even when it holds a string — so forging silently failed on
+        // every real LLM tool call while every existing (hand-built-args) test kept passing.
+        var stateDir = NewStateDir();
+        var registry = new ToolRegistry(stateDir);
+        var forge = new ForgeNewToolTool(registry);
+
+        var argsJson = """
+            {
+                "name": "coin_flip",
+                "description": "Flip a coin",
+                "code": "(Dictionary<string, object?> args) => new Dictionary<string, object?> { [\"result\"] = \"heads\" }",
+                "parameters": { "type": "object", "properties": {}, "required": [] }
+            }
+            """;
+        var args = JsonSerializer.Deserialize<Dictionary<string, object?>>(argsJson)!;
+
+        var result = await forge.DispatchAsync(args);
+        Assert.False(result.ContainsKey("error"), $"forge failed: {(result.TryGetValue("error", out var e) ? e : "")}");
+        Assert.True(registry.Contains("coin_flip"));
+
+        var callResult = await registry.DispatchAsync("coin_flip", []);
+        Assert.Equal("heads", callResult["result"]);
+    }
 }

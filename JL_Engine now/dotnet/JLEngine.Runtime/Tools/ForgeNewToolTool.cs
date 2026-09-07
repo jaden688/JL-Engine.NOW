@@ -57,20 +57,38 @@ public sealed class ForgeNewToolTool(ToolRegistry registry) : ITool
     {
         try
         {
-            if (args.GetOr("name") is not string name || string.IsNullOrWhiteSpace(name))
+            // Real tool calls arrive as JsonSerializer.Deserialize<Dictionary<string,object?>>
+            // of the LLM's raw JSON arguments — every value is a boxed JsonElement, not a
+            // native string/Dictionary. `is string`/`as string` pattern-matches silently fail
+            // against a JsonElement (it's never a real string reference), so this tool could
+            // never actually succeed via the live chat loop — only via hand-built test
+            // dictionaries that skip the JSON round-trip. ToolArgs.GetArg (used by every other
+            // tool) calls .ToString(), which works correctly on JsonElement; parameters needs
+            // JsonLoader.Materialize to become a real, recursively-native Dictionary.
+            var name = ToolArgs.GetArg(args, "name");
+            if (string.IsNullOrWhiteSpace(name))
             {
                 return new Dictionary<string, object?> { ["error"] = "Missing required argument: 'name'" };
             }
-            if (args.GetOr("code") is not string code || string.IsNullOrWhiteSpace(code))
+            var code = ToolArgs.GetArg(args, "code");
+            if (string.IsNullOrWhiteSpace(code))
             {
                 return new Dictionary<string, object?> { ["error"] = "Missing required argument: 'code'" };
             }
-            var description = args.GetOr("description") as string ?? $"Dynamically forged tool: {name}";
-            var parameters = args.GetOr("parameters") as Dictionary<string, object?> ?? new Dictionary<string, object?>
+            var rawDescription = ToolArgs.GetArg(args, "description");
+            var description = string.IsNullOrEmpty(rawDescription) ? $"Dynamically forged tool: {name}" : rawDescription;
+
+            var defaultParameters = new Dictionary<string, object?>
             {
                 ["type"] = "object",
                 ["properties"] = new Dictionary<string, object?>(),
                 ["required"] = new List<object?>(),
+            };
+            var parameters = args.GetOr("parameters") switch
+            {
+                Dictionary<string, object?> d => d,
+                JsonElement { ValueKind: JsonValueKind.Object } je => JsonLoader.Materialize(je) as Dictionary<string, object?> ?? defaultParameters,
+                _ => defaultParameters,
             };
 
             if (!ForgeEnabled())
@@ -202,7 +220,10 @@ public sealed class ForgeNewToolTool(ToolRegistry registry) : ITool
         var registryEntries = File.Exists(registryPath)
             ? JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(await File.ReadAllTextAsync(registryPath)) ?? []
             : [];
-        registryEntries.RemoveAll(e => e.GetOr("name") as string == name);
+        // Same JsonElement-vs-string trap as above: entries just deserialized from disk
+        // have JsonElement values, so `as string` here would never match and old entries
+        // for a re-forged tool would silently pile up instead of being replaced.
+        registryEntries.RemoveAll(e => ToolArgs.GetArg(e, "name") == name);
         registryEntries.Add(new Dictionary<string, object?> { ["name"] = name, ["description"] = schema.Description, ["parameters"] = schema.Parameters });
         await File.WriteAllTextAsync(registryPath, JsonSerializer.Serialize(registryEntries, new JsonSerializerOptions { WriteIndented = true }));
 

@@ -86,11 +86,11 @@
             "telemetry",
             "thoughts"
           ],
-          "type": "string"
+          "type": "STRING"
         },
         "query": {
           "description": "Search string or domain name (e.g. 'behavior_states', 'engine_capabilities', agent name, tool name, event type)",
-          "type": "string"
+          "type": "STRING"
         }
       },
       "type": "OBJECT"
@@ -99,6 +99,15 @@
   {
     "description": "Pulls live OS/CPU/Julia/RAM facts and delivers them with SparkByte's signature sassy commentary. Proves the forge works by returning real system data.",
     "name": "sassy_sys_roast",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "description": "Flips a virtual coin and returns 'heads' or 'tails' at random. No arguments needed.",
+    "name": "coin_flip",
     "parameters": {
       "type": "object",
       "properties": {},

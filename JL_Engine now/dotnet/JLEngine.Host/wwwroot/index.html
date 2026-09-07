@@ -109,11 +109,33 @@
     font-family: "Cascadia Code", Consolas, monospace; font-size: 11px;
   }
   .fs-loading, .fs-error { color: #7d8394; padding: 8px; }
-  .tool-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 4px; cursor: pointer; }
+  .tool-row { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 4px; }
   .tool-row:hover { background: #1d2029; }
-  .tool-row input { margin-top: 3px; }
+  .tool-row input[type=checkbox] { margin-top: 3px; }
+  .tool-label-col { flex: 1; min-width: 0; }
   .tool-desc { color: #7d8394; font-size: 11px; }
   .tool-dynamic { color: #e0c76f; font-size: 10px; border: 1px solid #e0c76f; border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+  .tool-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .tool-actions .small-btn { padding: 3px 8px; font-size: 11px; }
+  .craft-new-btn { width: 100%; margin-bottom: 8px; }
+  .craft-form { display: flex; flex-direction: column; gap: 8px; padding: 4px; }
+  .craft-field { display: flex; flex-direction: column; gap: 3px; }
+  .craft-label { color: #7d8394; font-size: 11px; }
+  .craft-field input[type=text], .craft-field textarea {
+    width: 100%; background: #1d2029; border: 1px solid #2a2d38; border-radius: 6px;
+    color: #e6e8ee; font-size: 12px; padding: 6px 8px; font-family: inherit;
+  }
+  .craft-field textarea { font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; resize: vertical; }
+  .craft-btn-row { display: flex; gap: 6px; }
+  .craft-status { color: #e0c76f; font-size: 11px; }
+  .settings-section { color: #7d8394; font-size: 10px; letter-spacing: 0.05em; margin: 14px 6px 6px 6px; }
+  .settings-section:first-child { margin-top: 4px; }
+  .settings-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; font-size: 12px; }
+  .settings-row input[type=text] { width: 120px; }
+  .settings-row input[type=password] { flex: 1; min-width: 0; }
+  .settings-label { flex: 1; }
+  .cred-set { color: #6fd08c; font-size: 10px; }
+  .cred-unset { color: #7d8394; font-size: 10px; }
 
   #terminal-col {
     width: 380px; flex-shrink: 0; display: flex; flex-direction: column;
@@ -169,6 +191,7 @@
     <div class="control-group">
       <button class="small-btn" id="toggle-files">&#x1F4C1; Files</button>
       <button class="small-btn" id="toggle-tools">&#x1F527; Tools</button>
+      <button class="small-btn" id="toggle-settings">&#x2699;&#xFE0F; Settings</button>
     </div>
   </div>
 
@@ -522,28 +545,29 @@
   setInterval(pollState, 2000);
 
   // ============================================================
-  // Aux panel — Files browser or Tool catalog, whichever is toggled on.
+  // Aux panel — Files browser, Tool catalog, or Settings, whichever is toggled on.
   // ============================================================
-  let auxMode = null; // null | 'files' | 'tools'
+  let auxMode = null; // null | 'files' | 'tools' | 'settings'
   let currentFsPath = '';
+  const AUX_TOGGLE_IDS = ['toggle-files', 'toggle-tools', 'toggle-settings'];
 
   function setAux(mode) {
-    document.getElementById('toggle-files').classList.toggle('active-toggle', mode === 'files');
-    document.getElementById('toggle-tools').classList.toggle('active-toggle', mode === 'tools');
+    for (const id of AUX_TOGGLE_IDS) document.getElementById(id).classList.toggle('active-toggle', id === `toggle-${mode}`);
     if (auxMode === mode) { auxMode = null; auxPanel.classList.add('hidden'); return; }
     auxMode = mode;
     auxPanel.classList.remove('hidden');
-    auxTitle.textContent = mode === 'files' ? 'FILES' : 'TOOLS';
+    auxTitle.textContent = mode.toUpperCase();
     if (mode === 'files') renderFiles(currentFsPath);
-    else renderTools();
+    else if (mode === 'tools') renderTools();
+    else renderSettings();
   }
   document.getElementById('toggle-files').addEventListener('click', () => setAux('files'));
   document.getElementById('toggle-tools').addEventListener('click', () => setAux('tools'));
+  document.getElementById('toggle-settings').addEventListener('click', () => setAux('settings'));
   document.getElementById('aux-close').addEventListener('click', () => {
     auxMode = null;
     auxPanel.classList.add('hidden');
-    document.getElementById('toggle-files').classList.remove('active-toggle');
-    document.getElementById('toggle-tools').classList.remove('active-toggle');
+    for (const id of AUX_TOGGLE_IDS) document.getElementById(id).classList.remove('active-toggle');
   });
 
   function formatSize(bytes) {
@@ -637,9 +661,20 @@
       if (!res.ok) { auxBody.innerHTML = '<div class="fs-error">Could not load tools.</div>'; return; }
       const data = await res.json();
       auxBody.innerHTML = '';
+
+      const craftBtn = document.createElement('button');
+      craftBtn.className = 'small-btn craft-new-btn';
+      craftBtn.textContent = '+ Craft new tool';
+      craftBtn.addEventListener('click', () => {
+        auxBody.innerHTML = '';
+        auxBody.appendChild(renderToolCraftForm(null));
+      });
+      auxBody.appendChild(craftBtn);
+
       for (const t of data.tools) {
-        const row = document.createElement('label');
+        const row = document.createElement('div');
         row.className = 'tool-row';
+
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = t.enabled;
@@ -650,12 +685,304 @@
             body: JSON.stringify({ sessionId: activeTabId, name: t.name, enabled: cb.checked }),
           });
         });
+
         const label = document.createElement('div');
+        label.className = 'tool-label-col';
         label.innerHTML = `<b>${escapeHtml(t.name)}</b>${t.dynamic ? ' <span class="tool-dynamic">forged</span>' : ''}` +
           `<div class="tool-desc">${escapeHtml(t.description)}</div>`;
+
+        const actions = document.createElement('div');
+        actions.className = 'tool-actions';
+
+        const runBtn = document.createElement('button');
+        runBtn.className = 'small-btn';
+        runBtn.textContent = 'Run';
+        runBtn.addEventListener('click', () => renderRunTool(t.name));
+        actions.appendChild(runBtn);
+
+        if (t.dynamic) {
+          const editBtn = document.createElement('button');
+          editBtn.className = 'small-btn';
+          editBtn.textContent = 'Edit';
+          editBtn.addEventListener('click', async () => {
+            const sres = await fetch(`/api/tools/source?session=${encodeURIComponent(activeTabId)}&name=${encodeURIComponent(t.name)}`);
+            if (!sres.ok) { addMsg('system', `Could not load source for '${t.name}'.`); return; }
+            const source = await sres.json();
+            auxBody.innerHTML = '';
+            auxBody.appendChild(renderToolCraftForm({ ...source, editing: true }));
+          });
+          actions.appendChild(editBtn);
+
+          const delBtn = document.createElement('button');
+          delBtn.className = 'small-btn';
+          delBtn.textContent = 'Delete';
+          delBtn.addEventListener('click', async () => {
+            await fetch('/api/tools/delete', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId: activeTabId, name: t.name }),
+            });
+            addMsg('system', `Deleted forged tool '${t.name}'.`);
+            renderTools();
+          });
+          actions.appendChild(delBtn);
+        }
+
         row.appendChild(cb);
         row.appendChild(label);
+        row.appendChild(actions);
         auxBody.appendChild(row);
+      }
+    } catch {
+      auxBody.innerHTML = '<div class="fs-error">Could not reach the engine.</div>';
+    }
+  }
+
+  function craftField(labelText, el) {
+    const wrap = document.createElement('div');
+    wrap.className = 'craft-field';
+    const l = document.createElement('div');
+    l.className = 'craft-label';
+    l.textContent = labelText;
+    wrap.appendChild(l);
+    wrap.appendChild(el);
+    return wrap;
+  }
+
+  function renderToolCraftForm(prefill) {
+    const form = document.createElement('div');
+    form.className = 'craft-form';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'tool_name';
+    nameInput.value = prefill?.name ?? '';
+    nameInput.disabled = !!prefill?.editing;
+
+    const descInput = document.createElement('input');
+    descInput.type = 'text';
+    descInput.placeholder = 'What does it do?';
+    descInput.value = prefill?.description ?? '';
+
+    const codeInput = document.createElement('textarea');
+    codeInput.rows = 8;
+    codeInput.placeholder = '(Dictionary<string, object?> args) => new Dictionary<string, object?> { ["result"] = "..." }';
+    codeInput.value = prefill?.code ?? '';
+
+    const paramsInput = document.createElement('textarea');
+    paramsInput.rows = 3;
+    paramsInput.value = JSON.stringify(prefill?.parameters ?? { type: 'object', properties: {}, required: [] });
+
+    const statusEl = document.createElement('div');
+    statusEl.className = 'craft-status';
+
+    const submitBtn = document.createElement('button');
+    submitBtn.className = 'small-btn';
+    submitBtn.textContent = prefill?.editing ? 'Save' : 'Forge';
+    submitBtn.addEventListener('click', async () => {
+      const name = nameInput.value.trim();
+      if (!name) { statusEl.textContent = 'Name is required.'; return; }
+      let parameters;
+      try { parameters = JSON.parse(paramsInput.value); }
+      catch { statusEl.textContent = 'Parameters must be valid JSON.'; return; }
+
+      statusEl.textContent = 'Forging — compiling and smoke-testing, may take a few seconds…';
+      const res = await fetch('/api/tools/forge', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: activeTabId, name, code: codeInput.value, description: descInput.value, parameters }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addMsg('system', data.result ?? `Tool '${name}' forged.`);
+        renderTools();
+      } else {
+        statusEl.textContent = data.error ?? 'Forge failed.';
+      }
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'small-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', () => renderTools());
+
+    form.appendChild(craftField('Name', nameInput));
+    form.appendChild(craftField('Description', descInput));
+    form.appendChild(craftField('Code (C# lambda, no trailing semicolon)', codeInput));
+    form.appendChild(craftField('Parameters (OpenAI-format JSON schema)', paramsInput));
+    const btnRow = document.createElement('div');
+    btnRow.className = 'craft-btn-row';
+    btnRow.appendChild(submitBtn);
+    btnRow.appendChild(cancelBtn);
+    form.appendChild(btnRow);
+    form.appendChild(statusEl);
+    return form;
+  }
+
+  function renderRunTool(name) {
+    auxBody.innerHTML = '';
+    const header = document.createElement('div');
+    header.className = 'settings-section';
+    header.textContent = 'RUN: ' + name;
+    auxBody.appendChild(header);
+
+    const argsInput = document.createElement('textarea');
+    argsInput.rows = 4;
+    argsInput.value = '{}';
+    auxBody.appendChild(craftField('Arguments (JSON)', argsInput));
+
+    const resultPre = document.createElement('pre');
+    resultPre.className = 'fs-preview';
+
+    const runBtn = document.createElement('button');
+    runBtn.className = 'small-btn';
+    runBtn.textContent = 'Run';
+    runBtn.addEventListener('click', async () => {
+      let args;
+      try { args = JSON.parse(argsInput.value); } catch { resultPre.textContent = 'Invalid JSON arguments.'; return; }
+      resultPre.textContent = 'Running…';
+      const res = await fetch('/api/tools/run', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: activeTabId, name, args }),
+      });
+      resultPre.textContent = JSON.stringify(await res.json(), null, 2);
+    });
+    const backBtn = document.createElement('button');
+    backBtn.className = 'small-btn';
+    backBtn.textContent = 'Back';
+    backBtn.addEventListener('click', () => renderTools());
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'craft-btn-row';
+    btnRow.appendChild(runBtn);
+    btnRow.appendChild(backBtn);
+    auxBody.appendChild(btnRow);
+    auxBody.appendChild(resultPre);
+  }
+
+  async function renderSettings() {
+    auxBody.innerHTML = '<div class="fs-loading">Loading…</div>';
+    try {
+      const [credsRes, behaviorRes, autopilotRes] = await Promise.all([
+        fetch('/api/settings/credentials'),
+        fetch('/api/settings/behavior?session=' + encodeURIComponent(activeTabId)),
+        fetch('/api/settings/autopilot'),
+      ]);
+      const creds = credsRes.ok ? await credsRes.json() : { credentials: [] };
+      const behavior = behaviorRes.ok ? await behaviorRes.json() : {};
+      const autopilot = autopilotRes.ok ? await autopilotRes.json() : { running: false, intervalSeconds: -1 };
+
+      auxBody.innerHTML = '';
+
+      const credsHeader = document.createElement('div');
+      credsHeader.className = 'settings-section';
+      credsHeader.textContent = 'CREDENTIALS';
+      auxBody.appendChild(credsHeader);
+
+      for (const c of creds.credentials) {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+        const label = document.createElement('span');
+        label.className = 'settings-label';
+        label.innerHTML = `${c.name} <span class="${c.set ? 'cred-set' : 'cred-unset'}">${c.set ? 'set' : 'not set'}</span>`;
+        const input = document.createElement('input');
+        input.type = 'password';
+        input.placeholder = c.set ? '(replace value)' : 'value…';
+        const btn = document.createElement('button');
+        btn.className = 'small-btn';
+        btn.textContent = 'Set';
+        btn.addEventListener('click', async () => {
+          if (!input.value.trim()) return;
+          const res = await fetch('/api/settings/credentials', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: c.name, value: input.value.trim() }),
+          });
+          if (res.ok) { addMsg('system', `${c.name} updated.`); renderSettings(); }
+        });
+        row.appendChild(label);
+        row.appendChild(input);
+        row.appendChild(btn);
+        auxBody.appendChild(row);
+      }
+
+      const behaviorHeader = document.createElement('div');
+      behaviorHeader.className = 'settings-section';
+      behaviorHeader.textContent = 'BEHAVIOR (this tab)';
+      auxBody.appendChild(behaviorHeader);
+
+      const safetyRow = document.createElement('label');
+      safetyRow.className = 'settings-row';
+      const safetyCb = document.createElement('input');
+      safetyCb.type = 'checkbox';
+      safetyCb.checked = behavior.safetyOn !== false;
+      safetyRow.appendChild(safetyCb);
+      safetyRow.appendChild(document.createTextNode(' Safety mode'));
+      auxBody.appendChild(safetyRow);
+
+      const loopsRow = document.createElement('div');
+      loopsRow.className = 'settings-row';
+      const loopsInput = document.createElement('input');
+      loopsInput.type = 'text';
+      loopsInput.style.width = '60px';
+      loopsInput.value = behavior.maxToolLoops ?? 30;
+      loopsRow.appendChild(document.createTextNode('Max tool loops '));
+      loopsRow.appendChild(loopsInput);
+      auxBody.appendChild(loopsRow);
+
+      const historyRow = document.createElement('div');
+      historyRow.className = 'settings-row';
+      const historyInput = document.createElement('input');
+      historyInput.type = 'text';
+      historyInput.style.width = '60px';
+      historyInput.value = behavior.historyLength ?? 20;
+      historyRow.appendChild(document.createTextNode('History length (turns) '));
+      historyRow.appendChild(historyInput);
+      auxBody.appendChild(historyRow);
+
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'small-btn';
+      applyBtn.textContent = 'Apply';
+      applyBtn.addEventListener('click', async () => {
+        const res = await fetch('/api/settings/behavior', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: activeTabId,
+            safetyOn: safetyCb.checked,
+            maxToolLoops: parseInt(loopsInput.value, 10) || 30,
+            historyLength: parseInt(historyInput.value, 10) || 20,
+          }),
+        });
+        if (res.ok) addMsg('system', 'Behavior settings updated for this tab.');
+      });
+      auxBody.appendChild(applyBtn);
+
+      const autopilotHeader = document.createElement('div');
+      autopilotHeader.className = 'settings-section';
+      autopilotHeader.textContent = 'AUTOPILOT';
+      auxBody.appendChild(autopilotHeader);
+
+      const autopilotInfo = document.createElement('div');
+      autopilotInfo.className = 'settings-row';
+      if (!autopilot.running) {
+        autopilotInfo.textContent = 'Disabled for this run. Set SPARKBYTE_AUTOPILOT_SECONDS and restart to enable.';
+        auxBody.appendChild(autopilotInfo);
+      } else {
+        const intervalInput = document.createElement('input');
+        intervalInput.type = 'text';
+        intervalInput.style.width = '60px';
+        intervalInput.value = autopilot.intervalSeconds;
+        const intervalBtn = document.createElement('button');
+        intervalBtn.className = 'small-btn';
+        intervalBtn.textContent = 'Apply';
+        intervalBtn.addEventListener('click', async () => {
+          const res = await fetch('/api/settings/autopilot', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ intervalSeconds: parseInt(intervalInput.value, 10) || 300 }),
+          });
+          if (res.ok) addMsg('system', 'Autopilot interval updated.');
+        });
+        autopilotInfo.appendChild(document.createTextNode('Running, interval (s) '));
+        autopilotInfo.appendChild(intervalInput);
+        autopilotInfo.appendChild(intervalBtn);
+        auxBody.appendChild(autopilotInfo);
       }
     } catch {
       auxBody.innerHTML = '<div class="fs-error">Could not reach the engine.</div>';

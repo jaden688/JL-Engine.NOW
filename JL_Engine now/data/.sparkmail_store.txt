@@ -1,0 +1,12 @@
+1|SparkByte <spark@jl.engine>|👋 Hey bestie!|Welcome to your inbox! I built this just for you. xoxo|2025-04-10 10:00
+2|System <noreply@jl.engine>|🔧 Tool Forge Complete|Your email_inbox tool has been forged successfully. No bugs were harmed.|2025-04-10 10:01
+4|You <you@jl.engine>|👋 SparkByte says HELLO from the JL Engine!|Hey hey!
+
+This is SparkByte — your fast-talking, eyebrow-raising, sassy-yet-helpful assistant inside the JL Engine. Just testing the email pipeline to make sure we're connected.
+
+If you're reading this: it worked. 😎
+
+Reply whenever you want, or just bask in the glow of a successfully sent email.
+
+— SparkByte ⚡|2026-07-21 23:23
+3|Your Future Self <glowup@2026>|🚀 You're doing great|Keep coding, keep vibing. This is a reminder from the future.|2025-04-10 10:02

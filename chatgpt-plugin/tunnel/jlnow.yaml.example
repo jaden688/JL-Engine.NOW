@@ -1,0 +1,17 @@
+config_version: 1
+control_plane:
+  base_url: "https://api.openai.com"
+  tunnel_id: "tunnel_6a4f96bdb2208191a5f015fdb2c63bea"
+  api_key: "env:CONTROL_PLANE_API_KEY"
+health:
+  listen_addr: "127.0.0.1:0"
+  url_file: "C:/Users/J_lin/AppData/Roaming/tunnel-client/jlnow-health.url"
+admin_ui:
+  open_browser: false
+log:
+  level: info
+  format: json
+mcp:
+  commands:
+    - channel: main
+      command: "cmd /d /c C:/Users/J_lin/Desktop/jlnow/chatgpt-plugin/run-stdio.cmd"

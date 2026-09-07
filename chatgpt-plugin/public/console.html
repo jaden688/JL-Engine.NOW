@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JL Engine Console</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 12px; background: transparent; color: CanvasText; }
+    main { border: 1px solid color-mix(in srgb, CanvasText 18%, transparent); border-radius: 16px; overflow: hidden; background: Canvas; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: color-mix(in srgb, #6d28d9 16%, Canvas); }
+    h1 { margin: 0; font-size: 17px; letter-spacing: .01em; }
+    #mode { border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 750; text-transform: uppercase; background: color-mix(in srgb, #6d28d9 22%, Canvas); }
+    #reply { margin: 0; padding: 16px; min-height: 76px; white-space: pre-wrap; line-height: 1.45; }
+    .state { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 16px 14px; }
+    .metric { border-radius: 10px; padding: 9px; background: color-mix(in srgb, CanvasText 7%, Canvas); min-width: 0; }
+    .metric b { display: block; font-size: 10px; opacity: .62; text-transform: uppercase; margin-bottom: 3px; }
+    .metric span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    details { margin: 0 16px 14px; border-top: 1px solid color-mix(in srgb, CanvasText 14%, transparent); padding-top: 10px; }
+    summary { cursor: pointer; font-size: 12px; font-weight: 700; }
+    #activity { margin: 8px 0 0; padding-left: 18px; font-size: 12px; }
+    #activity li { margin: 4px 0; }
+    form { display: grid; gap: 9px; padding: 14px 16px 16px; background: color-mix(in srgb, CanvasText 4%, Canvas); }
+    textarea { width: 100%; min-height: 72px; resize: vertical; border-radius: 10px; border: 1px solid color-mix(in srgb, CanvasText 22%, transparent); padding: 10px 11px; font: inherit; color: inherit; background: Canvas; }
+    .actions { display: flex; gap: 8px; justify-content: flex-end; }
+    button { border: 0; border-radius: 10px; padding: 9px 14px; font: inherit; font-weight: 750; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    #talk { background: color-mix(in srgb, #6d28d9 22%, Canvas); color: CanvasText; }
+    #execute { background: #b42318; color: white; }
+    #status { min-height: 16px; font-size: 11px; opacity: .7; }
+    @media (max-width: 520px) { .state { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>JL Engine · SparkByte</h1><span id="mode">ready</span></header>
+  <p id="reply">Talk to SparkByte, or explicitly approve a full engine execution turn.</p>
+  <section class="state" aria-label="Engine state">
+    <div class="metric"><b>Agent</b><span data-state="agent">—</span></div>
+    <div class="metric"><b>Gait</b><span data-state="gait">—</span></div>
+    <div class="metric"><b>Rhythm</b><span data-state="rhythmMode">—</span></div>
+    <div class="metric"><b>Aperture</b><span data-state="apertureMode">—</span></div>
+    <div class="metric"><b>Emotion</b><span data-state="emotion">—</span></div>
+    <div class="metric"><b>Stability</b><span data-state="stability">—</span></div>
+  </section>
+  <details><summary>Sanitized tool activity</summary><ul id="activity"><li>No tools reported.</li></ul></details>
+  <form id="prompt-form">
+    <textarea id="message" maxlength="20000" placeholder="What do you want SparkByte to do?" required></textarea>
+    <div id="status" role="status"></div>
+    <div class="actions">
+      <button id="talk" type="button">Talk</button>
+      <button id="execute" type="button">Execute</button>
+    </div>
+  </form>
+</main>
+<script type="module">
+  const replyEl = document.querySelector("#reply");
+  const modeEl = document.querySelector("#mode");
+  const activityEl = document.querySelector("#activity");
+  const messageEl = document.querySelector("#message");
+  const statusEl = document.querySelector("#status");
+  const buttons = [...document.querySelectorAll("button")];
+  let rpcId = 0;
+  const pending = new Map();
+
+  const notify = (method, params) => window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+  const request = (method, params) => new Promise((resolve, reject) => {
+    const id = ++rpcId;
+    pending.set(id, { resolve, reject });
+    window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+  });
+
+  function render(data) {
+    if (!data || typeof data !== "object") return;
+    if (typeof data.reply === "string") replyEl.textContent = data.reply;
+    if (typeof data.mode === "string") modeEl.textContent = data.mode;
+    const state = data.state;
+    if (state && typeof state === "object") {
+      document.querySelectorAll("[data-state]").forEach((element) => {
+        const value = state[element.dataset.state];
+        element.textContent = value === undefined || value === null ? "—" : String(value);
+      });
+    }
+    if (Array.isArray(data.toolActivity) || Array.isArray(data.activity)) {
+      const rows = data.toolActivity ?? data.activity;
+      activityEl.replaceChildren();
+      if (!rows.length) {
+        const li = document.createElement("li");
+        li.textContent = "No tools reported for this turn.";
+        activityEl.append(li);
+      }
+      for (const row of rows) {
+        const li = document.createElement("li");
+        li.textContent = `${row.succeeded ? "✓" : "✕"} ${row.toolName} · ${row.durationMs} ms`;
+        activityEl.append(li);
+      }
+    }
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+    if (message.id !== undefined && pending.has(message.id)) {
+      const waiting = pending.get(message.id);
+      pending.delete(message.id);
+      if (message.error) waiting.reject(message.error);
+      else waiting.resolve(message.result);
+      return;
+    }
+    if (message.method === "ui/notifications/tool-result") render(message.params?.structuredContent);
+  }, { passive: true });
+
+  const bridgeReady = request("ui/initialize", {
+    appInfo: { name: "jl-engine-console", version: "0.1.0" },
+    appCapabilities: {},
+    protocolVersion: "2026-01-26",
+  }).then(() => notify("ui/notifications/initialized", {}));
+
+  async function call(name) {
+    const message = messageEl.value.trim();
+    if (!message) return;
+    buttons.forEach((button) => { button.disabled = true; });
+    statusEl.textContent = name === "execute_with_sparkbyte" ? "Waiting for approval, then executing…" : "Talking to SparkByte…";
+    try {
+      await bridgeReady;
+      const result = await request("tools/call", { name, arguments: { message } });
+      render(result?.structuredContent);
+      messageEl.value = "";
+      statusEl.textContent = "Done.";
+    } catch (error) {
+      statusEl.textContent = `Call failed: ${error?.message ?? error?.code ?? "unknown error"}`;
+    } finally {
+      buttons.forEach((button) => { button.disabled = false; });
+    }
+  }
+
+  document.querySelector("#talk").addEventListener("click", () => call("talk_to_sparkbyte"));
+  document.querySelector("#execute").addEventListener("click", () => call("execute_with_sparkbyte"));
+</script>
+</body>
+</html>

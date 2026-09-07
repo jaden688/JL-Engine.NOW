@@ -24,7 +24,10 @@ app.UseStaticFiles(new StaticFileOptions { FileProvider = staticFileProvider });
 
 var projectRoot = Directory.GetCurrentDirectory();
 var shared = await RuntimeComposition.BuildSharedAsync(projectRoot);
-var sessions = new SessionRegistry(shared);
+var agentsDir = Path.Combine(projectRoot, "agents");
+// card_cruncher needs JLEngine.Bridges' CardCruncher, which JLEngine.Runtime
+// can't reference — registered into every new session from here instead.
+var sessions = new SessionRegistry(shared, chat => chat.Tools.Register(new CardCruncherTool(agentsDir)));
 app.MapChatEndpoints(shared, sessions);
 
 // A2A and Autopilot aren't tab-based — they get one fixed, long-lived session
@@ -56,6 +59,29 @@ Console.WriteLine(autopilotOptions.IntervalSeconds < 0
     ? "Autopilot: disabled (set SPARKBYTE_AUTOPILOT_SECONDS to enable)"
     : $"Autopilot: ticking every {autopilotOptions.IntervalSeconds}s");
 
+// --- Autopilot settings: adjustable while already running ---
+// Starting it from fully-disabled still needs SPARKBYTE_AUTOPILOT_SECONDS +
+// a restart — RunAsync returns immediately when it starts disabled (an
+// explicit test locks that in), so there's no "turn it on" to wire up here.
+app.MapGet("/api/settings/autopilot", () => Results.Ok(new
+{
+    running = autopilot.Running,
+    intervalSeconds = autopilot.Options.IntervalSeconds,
+}));
+
+app.MapPost("/api/settings/autopilot", (SetAutopilotRequest req) =>
+{
+    if (!autopilot.Running)
+    {
+        return Results.BadRequest(new
+        {
+            error = "Autopilot is disabled for this run. Set SPARKBYTE_AUTOPILOT_SECONDS and restart to enable it.",
+        });
+    }
+    autopilot.Options.IntervalSeconds = Math.Max(5, req.IntervalSeconds);
+    return Results.Ok(new { running = autopilot.Running, intervalSeconds = autopilot.Options.IntervalSeconds });
+});
+
 app.Lifetime.ApplicationStopping.Register(() => lifetimeCts.Cancel());
 
 try
@@ -68,3 +94,5 @@ finally
         a2aTask.ContinueWith(_ => { }),
         autopilotTask.ContinueWith(_ => { }));
 }
+
+record SetAutopilotRequest(int IntervalSeconds);

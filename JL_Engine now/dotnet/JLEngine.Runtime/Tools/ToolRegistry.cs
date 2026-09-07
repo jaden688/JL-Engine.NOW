@@ -2,6 +2,12 @@ using System.Text.Json;
 
 namespace JLEngine.Runtime.Tools;
 
+public enum ToolExecutionPolicy
+{
+    Full,
+    None,
+}
+
 /// <summary>Schema entry for one tool, in OpenAI function-calling format
 /// (lowercase types) — the wire format every live provider actually uses,
 /// per the plan's decision to skip porting Schema.jl's Gemini-shaped
@@ -45,8 +51,16 @@ public sealed class ToolRegistry
 
     public IReadOnlyCollection<string> ToolNames() => _tools.Keys;
 
-    public async Task<Dictionary<string, object?>> DispatchAsync(string name, Dictionary<string, object?> args, string agent = "SparkByte")
+    public async Task<Dictionary<string, object?>> DispatchAsync(
+        string name,
+        Dictionary<string, object?> args,
+        string agent = "SparkByte",
+        ToolExecutionPolicy policy = ToolExecutionPolicy.Full)
     {
+        if (policy == ToolExecutionPolicy.None)
+        {
+            return new Dictionary<string, object?> { ["error"] = "Tool execution is disabled for this conversation turn." };
+        }
         if (!_tools.TryGetValue(name, out var tool))
         {
             return new Dictionary<string, object?> { ["error"] = $"Unknown tool: '{name}'" };
@@ -75,8 +89,11 @@ public sealed class ToolRegistry
     /// <summary>Builds the OpenAI-format `tools` array for a chat-completions
     /// request body, covering both built-in tools with statically-known
     /// schemas and forged dynamic tools.</summary>
-    public List<Dictionary<string, object?>> BuildOpenAiToolsArray(IReadOnlyDictionary<string, ToolSchemaEntry> builtinSchemas)
+    public List<Dictionary<string, object?>> BuildOpenAiToolsArray(
+        IReadOnlyDictionary<string, ToolSchemaEntry> builtinSchemas,
+        ToolExecutionPolicy policy = ToolExecutionPolicy.Full)
     {
+        if (policy == ToolExecutionPolicy.None) return [];
         var entries = builtinSchemas.Values.Concat(_dynamicSchema.Values).Where(e => !DisabledTools.Contains(e.Name));
         return entries.Select(e => new Dictionary<string, object?>
         {
@@ -91,6 +108,48 @@ public sealed class ToolRegistry
     }
 
     public IReadOnlyDictionary<string, ToolSchemaEntry> DynamicSchema => _dynamicSchema;
+
+    /// <summary>Reads back a forged tool's C# source, for the GUI's "edit"
+    /// flow. Returns null if the tool isn't a persisted forged tool.</summary>
+    public async Task<string?> GetDynamicSourceAsync(string name)
+    {
+        if (!_dynamicSchema.ContainsKey(name)) return null;
+        var sourcePath = Path.Combine(StateDir, "dynamic_tools_source.json");
+        if (!File.Exists(sourcePath)) return null;
+        var sources = JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(sourcePath)) ?? [];
+        return sources.GetValueOrDefault(name);
+    }
+
+    /// <summary>Removes a forged tool from this session's live registry and
+    /// deletes it from the persisted registry/source files, so it doesn't
+    /// reappear for new sessions created after the delete. Built-in tools
+    /// can't be removed this way — only entries in DynamicSchema.</summary>
+    public async Task<bool> RemoveDynamicAsync(string name)
+    {
+        if (!_dynamicSchema.ContainsKey(name)) return false;
+
+        _tools.Remove(name);
+        _dynamicSchema.Remove(name);
+        DisabledTools.Remove(name);
+
+        var registryPath = Path.Combine(StateDir, "dynamic_tools_registry.json");
+        if (File.Exists(registryPath))
+        {
+            var entries = JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(await File.ReadAllTextAsync(registryPath)) ?? [];
+            entries.RemoveAll(e => ToolArgs.GetArg(e, "name") == name);
+            await File.WriteAllTextAsync(registryPath, JsonSerializer.Serialize(entries, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        var sourcePath = Path.Combine(StateDir, "dynamic_tools_source.json");
+        if (File.Exists(sourcePath))
+        {
+            var sources = JsonSerializer.Deserialize<Dictionary<string, string>>(await File.ReadAllTextAsync(sourcePath)) ?? [];
+            sources.Remove(name);
+            await File.WriteAllTextAsync(sourcePath, JsonSerializer.Serialize(sources, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        return true;
+    }
 
     /// <summary>Full catalog for the GUI's tool panel: every built-in + stub +
     /// forged tool, with whether it's disabled for this session.</summary>

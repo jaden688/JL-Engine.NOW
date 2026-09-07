@@ -28,7 +28,12 @@ namespace JLEngine.Bridges;
 /// </summary>
 public sealed class AutopilotOptions
 {
-    public int IntervalSeconds { get; init; } = 300;
+    // Settable (not just init) so the GUI's settings panel can adjust cadence
+    // on an already-running autopilot loop live — RunAsync's wait loop re-reads
+    // this each second. Turning autopilot ON from a fully-disabled start still
+    // requires SPARKBYTE_AUTOPILOT_SECONDS + a restart (see RunAsync's early
+    // return below, which an explicit test locks in as immediate/non-blocking).
+    public int IntervalSeconds { get; set; } = 300;
     public int ReflectEveryTicks { get; init; } = 3;
     public int DailyLlmCallCap { get; init; } = 20;
 
@@ -55,6 +60,10 @@ public sealed class AutopilotState
 
 public sealed class AutopilotService(JLEngineCore engine, SparkByteDatabase db, AutopilotOptions options, Action<Dictionary<string, object?>>? broadcast = null)
 {
+    /// <summary>Exposed so the GUI's settings endpoint can read/adjust the
+    /// interval of an already-running loop without reaching into internals.</summary>
+    public AutopilotOptions Options => options;
+
     private int _tickCount;
     private int _llmCallsToday;
     private string _dayBucket = DateTime.UtcNow.ToString("yyyy-MM-dd");

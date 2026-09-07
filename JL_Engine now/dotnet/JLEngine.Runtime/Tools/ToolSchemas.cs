@@ -59,14 +59,59 @@ public static class ToolSchemas
 
         ["recall"] = new("recall", "Recall previously remembered notes, optionally filtered by intent/topic.",
             Obj(new() { ["intent"] = Str("Optional topic/intent filter."), ["limit"] = Str("Max number of results.") })),
+
+        ["bluetooth_devices"] = new("bluetooth_devices", "Inspect Bluetooth adapter status and paired/nearby devices for this machine.",
+            Obj(new() { ["action"] = Str("'list' (default) or 'status'.") })),
+
+        ["send_sms"] = new("send_sms", "Send an SMS via Twilio (requires TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_FROM_NUMBER — set them in Settings).",
+            Obj(new()
+            {
+                ["to"] = Str("Destination phone number, E.164 format."),
+                ["message"] = Str("The SMS body text."),
+                ["from"] = Str("Override the configured Twilio from-number."),
+                ["dry_run"] = Str("If true, preview without actually sending."),
+            }, "to", "message")),
+
+        ["github_pages_deploy"] = new("github_pages_deploy",
+            "Create or update a GitHub Pages site (requires GITHUB_TOKEN — set it in Settings). Creates the repo if missing, pushes index.html, enables Pages.",
+            Obj(new()
+            {
+                ["html"] = Str("The full HTML content to deploy as index.html."),
+                ["repo"] = Str("Repo name to deploy to (default: sparkbyte-home)."),
+                ["message"] = Str("Commit message for the deploy."),
+            }, "html")),
+
+        ["metamorph"] = new("metamorph",
+            "Inspect this engine's own tool registry, reload previously-forged dynamic tools from disk, or restore one by name.",
+            Obj(new()
+            {
+                ["action"] = Str("'inspect' (default), 'reload_dynamic_tools', or 'restore_tool'."),
+                ["name"] = Str("Tool name — required for the 'restore_tool' action."),
+            })),
+
+        ["card_cruncher"] = new("card_cruncher",
+            "Convert a SillyTavern/CharacterTavern character card (PNG or JSON) into a new JL Engine agent card file.",
+            Obj(new()
+            {
+                ["card_path"] = Str("Path to the character card file (.png or .json)."),
+                ["out_path"] = Str("Override the output path for the generated agent card."),
+                ["dry_run"] = Str("If true, convert and preview without writing a file."),
+            }, "card_path")),
+
+        ["playwright_interact"] = new("playwright_interact",
+            "Drive a headless browser: navigate and perform a sequence of actions (click/fill/type/press/wait/wait_for/select/read/evaluate/screenshot). " +
+            "Requires 'playwright install chromium' to have been run once.",
+            Obj(new()
+            {
+                ["url"] = Str("Initial URL to navigate to."),
+                ["actions"] = new Dictionary<string, object?>
+                {
+                    ["type"] = "array",
+                    ["description"] = "Sequence of {type, selector, value, timeout_ms} action objects.",
+                    ["items"] = new Dictionary<string, object?> { ["type"] = "object" },
+                },
+            })),
     };
 
-    /// <summary>Minimal placeholder schemas for the 6 not-ported tools, so
-    /// they remain visible in the tool list (matching Julia's complete
-    /// TOOLS_SCHEMA) even though dispatch returns a not-implemented error.</summary>
-    public static IReadOnlyDictionary<string, ToolSchemaEntry> StubSchemas { get; } = NotPortedTool.All()
-        .ToDictionary(t => t.Name, t => new ToolSchemaEntry(t.Name, $"(Not implemented in the C# port yet) {t.Name}", Obj([])));
-
-    public static IReadOnlyDictionary<string, ToolSchemaEntry> All() =>
-        BuiltinSchemas.Concat(StubSchemas).ToDictionary(kv => kv.Key, kv => kv.Value);
+    public static IReadOnlyDictionary<string, ToolSchemaEntry> All() => BuiltinSchemas;
 }

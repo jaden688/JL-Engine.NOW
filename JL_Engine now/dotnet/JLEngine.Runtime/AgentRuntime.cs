@@ -8,6 +8,10 @@ using JLEngine.Runtime.Tools;
 
 namespace JLEngine.Runtime;
 
+public sealed record AgentToolActivity(string ToolName, bool Succeeded, long DurationMs);
+public sealed record AgentTurnResult(string Reply, IReadOnlyList<AgentToolActivity> ToolActivity);
+public enum ModelProvider { OpenRouter, OpenAI }
+
 /// <summary>
 /// Port of BYTE.jl's process_message / tool-calling loop — the BYTE-
 /// equivalent runtime layer. Deliberately builds its OWN system prompt
@@ -25,10 +29,6 @@ public sealed class AgentRuntime(
     IReadOnlyDictionary<string, ToolSchemaEntry> builtinSchemas,
     SparkByteDatabase? db = null)
 {
-    // Matches Julia's actual source value (BYTE.jl:1013) — telemetry sampled
-    // "12" in one trace, but that reflected the separate 4x-repeat guard
-    // tripping first, not this ceiling. Per the plan, the source is ground truth.
-    private const int MaxToolLoops = 30;
     private const int MaxRepeatToolCalls = 4;
     private const string DefaultModel = "deepseek/deepseek-v4-flash";
     private int _turnNumber;
@@ -37,6 +37,31 @@ public sealed class AgentRuntime(
     /// uses when no explicit model is passed to ProcessMessageAsync — settable
     /// live via the GUI's model picker (see RuntimeComposition's /api/model).</summary>
     public string CurrentModel { get; set; } = DefaultModel;
+
+    /// <summary>Existing GUI/A2A sessions remain on OpenRouter. The dedicated
+    /// private ChatGPT session opts into direct OpenAI without changing them.</summary>
+    public ModelProvider Provider { get; set; } = ModelProvider.OpenRouter;
+
+    /// <summary>Which ChatSession (GUI tab) owns this runtime — stamped onto
+    /// engine_snapshot telemetry so the GUI's state bar can tell which tab an
+    /// event belongs to instead of reacting to every open tab's activity.</summary>
+    public string SessionId { get; set; } = "";
+
+    // Matches Julia's actual source value (BYTE.jl:1013) — telemetry sampled
+    // "12" in one trace, but that reflected the separate 4x-repeat guard
+    // tripping first, not this ceiling. Per the plan, the source is ground truth.
+    // Settable via the GUI's settings panel (see /api/settings/behavior).
+    public int MaxToolLoops { get; set; } = 30;
+
+    /// <summary>Null = use the engine's own configured default (safety on).
+    /// Settable per session via the GUI's settings panel.</summary>
+    public bool? SafetyOn { get; set; }
+
+    /// <summary>Turns of history (user+assistant pairs) to keep before the
+    /// oldest are dropped — the C# equivalent of EngineConfig.HistoryLength,
+    /// which Julia's own Core.jl never actually enforced either; this is a
+    /// genuine, newly-real behavior, not a faithful-port gap fix.</summary>
+    public int HistoryLength { get; set; } = 20;
 
     /// <summary>Port of BYTE.jl's `_build_self_context`: a short description of the
     /// active agent's identity and declared tool posture, pulled from the raw
@@ -74,8 +99,18 @@ public sealed class AgentRuntime(
 
     public async Task<string> ProcessMessageAsync(string userText, List<Dictionary<string, object?>> history, string model = DefaultModel)
     {
+        var result = await ProcessMessageDetailedAsync(userText, history, model, ToolExecutionPolicy.Full);
+        return result.Reply;
+    }
+
+    public async Task<AgentTurnResult> ProcessMessageDetailedAsync(
+        string userText,
+        List<Dictionary<string, object?>> history,
+        string model = DefaultModel,
+        ToolExecutionPolicy toolPolicy = ToolExecutionPolicy.Full)
+    {
         var startedAt = DateTime.UtcNow;
-        var snapshot = engine.AnalyzeTurn(userText);
+        var snapshot = engine.AnalyzeTurn(userText, safetyOn: SafetyOn);
         LogEngineSnapshot(snapshot);
 
         var systemPrompt = BuildSystemPrompt(snapshot);
@@ -90,11 +125,12 @@ public sealed class AgentRuntime(
         messages.AddRange(history);
         messages.Add(new Dictionary<string, object?> { ["role"] = "user", ["content"] = userText });
 
-        var toolsArray = tools.BuildOpenAiToolsArray(builtinSchemas);
+        var toolsArray = tools.BuildOpenAiToolsArray(builtinSchemas, toolPolicy);
         var temperature = Math.Clamp(snapshot.ApertureState.Temp + snapshot.Drift.TemperatureDelta, 0.1, 1.5);
         var topP = Math.Clamp(snapshot.ApertureState.TopP, 0.1, 1.0);
 
         var seenCalls = new List<string>();
+        var toolActivity = new List<AgentToolActivity>();
         var finalReply = "";
 
         for (var loopIter = 1; ; loopIter++)
@@ -145,8 +181,9 @@ public sealed class AgentRuntime(
 
                 telemetry.LogToolCall(toolName, args, loopIter);
                 var toolStarted = DateTime.UtcNow;
-                var result = await tools.DispatchAsync(toolName, args, engine.CurrentAgentName);
+                var result = await tools.DispatchAsync(toolName, args, engine.CurrentAgentName, toolPolicy);
                 var elapsedMs = (long)(DateTime.UtcNow - toolStarted).TotalMilliseconds;
+                toolActivity.Add(new AgentToolActivity(toolName, !result.ContainsKey("error"), elapsedMs));
                 telemetry.LogToolResult(toolName, result.ContainsKey("error"), elapsedMs);
 
                 messages.Add(new Dictionary<string, object?>
@@ -164,7 +201,7 @@ public sealed class AgentRuntime(
         var elapsedTotalMs = (long)(DateTime.UtcNow - startedAt).TotalMilliseconds;
         telemetry.LogTurnComplete(engine.CurrentAgentName, elapsedTotalMs);
         db?.WriteTurnSnapshot(snapshot, engine.CurrentAgentName, model, telemetry.SessionId, ++_turnNumber, userText.Length, finalReply.Length, elapsedTotalMs);
-        return finalReply;
+        return new AgentTurnResult(finalReply, toolActivity);
     }
 
     /// <summary>Logs Signals/Behavior/Rhythm/Drift/Investment/Aperture — the
@@ -174,6 +211,7 @@ public sealed class AgentRuntime(
     {
         telemetry.LogEvent("engine_snapshot", new Dictionary<string, object?>
         {
+            ["sessionId"] = SessionId,
             ["agent"] = snapshot.Agent,
             ["trigger"] = snapshot.Trigger,
             ["gait"] = snapshot.Gait,
@@ -238,39 +276,82 @@ public sealed class AgentRuntime(
     private static string TruncateForLog(string text, int max = 8000) =>
         text.Length > max ? text[..max] + $"...[truncated, {text.Length} chars total]" : text;
 
+    private static string BoundedProviderError(System.Net.HttpStatusCode statusCode, string bodyText)
+    {
+        var detail = "Upstream model provider request failed.";
+        try
+        {
+            using var doc = JsonDocument.Parse(bodyText);
+            if (doc.RootElement.TryGetProperty("error", out var error) &&
+                error.TryGetProperty("message", out var message) &&
+                message.ValueKind == JsonValueKind.String)
+            {
+                detail = message.GetString() ?? detail;
+            }
+        }
+        catch (JsonException)
+        {
+            // Provider failures can be HTML or plain text. Keep the client-facing
+            // result generic rather than reflecting an untrusted response body.
+        }
+
+        detail = Telemetry.RedactSensitiveText(detail).Trim();
+        if (detail.Length > 300) detail = detail[..300] + "...[truncated]";
+        return $"HTTP {(int)statusCode}: {detail}";
+    }
+
     private async Task<(Dictionary<string, object?>? Message, string? Error)> CallChatCompletionsAsync(
         string model, List<Dictionary<string, object?>> messages, List<Dictionary<string, object?>> toolsArray, double temperature, double topP)
     {
-        var apiKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+        var isOpenAi = Provider == ModelProvider.OpenAI;
+        var keyName = isOpenAi ? "OPENAI_API_KEY" : "OPENROUTER_API_KEY";
+        var apiKey = Environment.GetEnvironmentVariable(keyName) ??
+            Environment.GetEnvironmentVariable(keyName, EnvironmentVariableTarget.User);
         if (string.IsNullOrEmpty(apiKey))
         {
-            return (null, "OpenRouter API key is not set.");
+            return (null, $"{keyName} is not set.");
         }
 
         var payload = new Dictionary<string, object?>
         {
             ["model"] = model,
             ["messages"] = messages.Select(m => (object?)m).ToList(),
-            ["tools"] = toolsArray.Select(t => (object?)t).ToList(),
-            ["tool_choice"] = "auto",
-            ["temperature"] = temperature,
-            ["top_p"] = topP,
         };
+        if (isOpenAi)
+        {
+            // GPT-5 nano is a reasoning model. Minimal effort keeps the direct
+            // OpenAI path extremely inexpensive while retaining function calls.
+            payload["reasoning_effort"] = "minimal";
+        }
+        else
+        {
+            payload["temperature"] = temperature;
+            payload["top_p"] = topP;
+        }
+        if (toolsArray.Count > 0)
+        {
+            payload["tools"] = toolsArray.Select(t => (object?)t).ToList();
+            payload["tool_choice"] = "auto";
+        }
         var requestJson = JsonSerializer.Serialize(payload);
 
         // Real outbound network traffic, not a summary — the API key itself
         // lives only in the Authorization header below, never in this body,
         // but RedactSensitiveText still runs as cheap defense in depth.
+        var endpoint = isOpenAi
+            ? "https://api.openai.com/v1/chat/completions"
+            : "https://openrouter.ai/api/v1/chat/completions";
         telemetry.LogEvent("api_request", new Dictionary<string, object?>
         {
-            ["endpoint"] = "https://openrouter.ai/api/v1/chat/completions",
+            ["endpoint"] = endpoint,
+            ["provider"] = isOpenAi ? "openai" : "openrouter",
             ["model"] = model,
             ["body"] = Telemetry.RedactSensitiveText(TruncateForLog(requestJson)),
         });
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, "https://openrouter.ai/api/v1/chat/completions");
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
             request.Content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
@@ -285,7 +366,7 @@ public sealed class AgentRuntime(
 
             if (!response.IsSuccessStatusCode)
             {
-                return (null, $"HTTP {(int)response.StatusCode}: {bodyText}");
+                return (null, BoundedProviderError(response.StatusCode, bodyText));
             }
 
             using var doc = JsonDocument.Parse(bodyText);
@@ -300,7 +381,9 @@ public sealed class AgentRuntime(
         }
         catch (Exception e)
         {
-            return (null, e.Message);
+            var detail = Telemetry.RedactSensitiveText(e.Message).Trim();
+            if (detail.Length > 300) detail = detail[..300] + "...[truncated]";
+            return (null, detail);
         }
     }
 }

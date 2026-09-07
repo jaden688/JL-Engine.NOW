@@ -372,3 +372,13 @@ function tool_sassy_sys_roast(args)
         )
     end
 end
+
+# -- Tool: coin_flip --
+function tool_coin_flip(args)
+    result = rand(["heads", "tails"])
+    flavor = result == "heads" ? "🪙 Heads! Lucky you." : "🪙 Tails! Better luck next time."
+    return Dict{String,Any}(
+        "result" => result,
+        "flavor" => flavor
+    )
+end
