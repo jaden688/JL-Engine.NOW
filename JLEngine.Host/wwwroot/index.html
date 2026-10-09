@@ -1,0 +1,1081 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>JL Engine</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg-0: #070b12;
+  --bg-1: #0d1320;
+  --bg-2: #121b2a;
+  --panel: rgba(16, 24, 36, 0.9);
+  --line: rgba(148, 163, 184, 0.18);
+  --text: #e6edf8;
+  --muted: #9aa8bc;
+  --muted-strong: #c4cedd;
+  --blue: #5b8cff;
+  --blue-strong: #7aa2ff;
+  --green: #4ade80;
+  --orange: #fbbf24;
+  --red: #f87171;
+  --purple: #c084fc;
+  --shadow: 0 18px 45px rgba(2, 6, 23, 0.55);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(91, 140, 255, 0.16), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(192, 132, 252, 0.14), transparent 32%),
+    linear-gradient(180deg, var(--bg-0), var(--bg-1) 30%, var(--bg-2));
+  color: var(--text);
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  padding: 14px 18px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(7, 11, 18, 0.76);
+  backdrop-filter: blur(20px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  }
+
+.brand-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue-strong), var(--purple));
+  box-shadow: 0 0 18px rgba(122, 162, 255, 0.8);
+}
+
+header h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #dfe9ff;
+}
+
+#status {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(148, 163, 184, 0.06);
+}
+
+#status.connected { color: var(--green); border-color: rgba(74, 222, 128, 0.3); background: rgba(74, 222, 128, 0.08); }
+#status.error { color: var(--red); border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.08); }
+
+#tab-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 18px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  background: rgba(9, 15, 23, 0.5);
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 8px;
+  border-radius: 12px 12px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: rgba(148, 163, 184, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 150ms ease;
+}
+
+.tab.active {
+  color: var(--text);
+  background: rgba(15, 24, 36, 0.92);
+  border-color: rgba(91, 140, 255, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+.tab.unread .tab-label::after {
+  content: ' •';
+  color: var(--green);
+}
+
+.tab-close {
+  color: var(--muted);
+  border-radius: 999px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-close:hover {
+  background: rgba(248, 113, 113, 0.18);
+  color: white;
+}
+
+.tab-add {
+  background: rgba(91, 140, 255, 0.08);
+  color: var(--blue-strong);
+  border: 1px dashed rgba(91, 140, 255, 0.5);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+
+#controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(8, 14, 21, 0.5);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-group label {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+select, input[type=text] {
+  background: rgba(15, 24, 36, 0.9);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+  font-family: inherit;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+
+select:focus, input[type=text]:focus {
+  outline: none;
+  border-color: rgba(91, 140, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(91, 140, 255, 0.15);
+}
+
+.small-btn {
+  background: linear-gradient(180deg, rgba(22, 34, 50, 0.96), rgba(17, 25, 36, 0.96));
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 120ms ease;
+}
+
+.small-btn:hover { border-color: rgba(91, 140, 255, 0.4); }
+.small-btn.active-toggle {
+  background: linear-gradient(180deg, rgba(91, 140, 255, 0.28), rgba(54, 87, 195, 0.22));
+  border-color: rgba(91, 140, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+#custom-model { width: 190px; display: none; }
+
+#state-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(8, 14, 21, 0.5);
+}
+
+.chip {
+  background: rgba(15, 24, 36, 0.9);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--muted-strong);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+.chip b { color: var(--text); font-weight: 700; }
+
+#main {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  background: rgba(7, 11, 18, 0.18);
+}
+
+#chat-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 18px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(11, 17, 26, 0.1), rgba(11, 17, 26, 0.35));
+}
+
+.msg {
+  max-width: 72%;
+  padding: 11px 14px;
+  border-radius: 16px;
+  line-height: 1.55;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  box-shadow: var(--shadow);
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #4d6fff, #6f8dff);
+  color: white;
+  border-bottom-right-radius: 6px;
+}
+
+.msg.agent {
+  align-self: flex-start;
+  background: rgba(15, 24, 36, 0.96);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 6px;
+  color: var(--text);
+}
+
+.msg.system {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12px;
+  background: rgba(148, 163, 184, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  max-width: none;
+  box-shadow: none;
+}
+
+form#composer {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+  background: rgba(8, 14, 21, 0.5);
+}
+
+#text {
+  flex: 1;
+  min-height: 46px;
+  max-height: 180px;
+  background: rgba(15, 24, 36, 0.84);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 14px;
+  resize: vertical;
+  font-family: inherit;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+#text:focus {
+  outline: none;
+  border-color: rgba(91, 140, 255, 0.7);
+  box-shadow: 0 0 0 4px rgba(91, 140, 255, 0.12);
+}
+
+button.primary {
+  background: linear-gradient(135deg, #5b8cff, #7a6aff);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  padding: 0 22px;
+  min-width: 104px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(91, 140, 255, 0.28);
+}
+
+button.primary:hover { filter: brightness(1.06); }
+button.primary:disabled {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+#aux-panel {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: rgba(10, 16, 24, 0.86);
+}
+
+#aux-panel.hidden { display: none; }
+
+#aux-header {
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#aux-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.fs-path { color: var(--muted); font-size: 11px; margin-bottom: 8px; word-break: break-all; }
+.fs-entry { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-radius: 10px; cursor: pointer; gap: 8px; }
+.fs-entry:hover { background: rgba(148, 163, 184, 0.06); }
+.fs-dir { color: #a7c0ff; }
+.fs-attach { padding: 4px 8px; font-size: 11px; flex-shrink: 0; }
+.fs-preview {
+  background: rgba(3, 7, 12, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 8px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+}
+.fs-loading, .fs-error { color: var(--muted); padding: 8px; }
+.tool-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border-radius: 10px; cursor: pointer; }
+.tool-row:hover { background: rgba(148, 163, 184, 0.06); }
+.tool-row input { margin-top: 4px; }
+.tool-desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.tool-dynamic { color: var(--orange); font-size: 10px; border: 1px solid rgba(251,191,36,0.5); border-radius: 999px; padding: 1px 6px; margin-left: 6px; }
+
+#terminal-col {
+  width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: rgba(5, 9, 14, 0.92);
+}
+
+#terminal-header {
+  padding: 10px 12px;
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#terminal {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.tline { white-space: pre-wrap; word-break: break-word; margin-bottom: 4px; }
+.tline .ts { color: #64748b; }
+.tline .ev { font-weight: 700; }
+.tline.ev-tool_call .ev, .tline.ev-tool_result .ev { color: #67e8f9; }
+.tline.ev-error .ev, .tline.ev-tool_loop_guard .ev { color: #fca5a5; }
+.tline.ev-turn_complete .ev { color: #86efac; }
+.tline.ev-model_change .ev, .tline.ev-agent_change .ev { color: #fcd34d; }
+.tline.ev-engine_snapshot .ev { color: #d8b4fe; }
+.tline.ev-api_request .ev, .tline.ev-api_response .ev { color: #fbbf24; }
+.tline.ev-system_prompt .ev { color: #7dd3fc; }
+.tline.ev-default .ev { color: #a5b4fc; }
+details.tblock { margin: 2px 0 6px 0; }
+details.tblock summary { cursor: pointer; }
+details.tblock summary:hover { text-decoration: underline; }
+details.tblock pre {
+  margin: 6px 0 0 0;
+  padding: 8px;
+  background: rgba(12, 18, 28, 0.85);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+}
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="brand-mark"></span>
+      <h1>JL Engine</h1>
+    </div>
+    <span id="status">connecting…</span>
+  </header>
+
+  <div id="tab-bar"></div>
+
+  <div id="controls">
+    <div class="settings-bar">
+      <div class="control-group">
+        <label for="agent-select">Operator</label>
+        <select id="agent-select"></select>
+      </div>
+      <div class="control-group">
+        <label for="model-select">Model</label>
+        <div class="setting-inline">
+          <select id="model-select"></select>
+          <input type="text" id="custom-model" placeholder="provider/model-id" />
+          <button class="small-btn" id="apply-model">Apply</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <button class="small-btn" id="toggle-files">&#x1F4C1; Files</button>
+        <button class="small-btn" id="toggle-tools">&#x1F527; Tools</button>
+        <button class="small-btn settings-toggle" id="toggle-settings">Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-panel" class="settings-panel hidden">
+    <div class="settings-grid">
+      <div class="setting-card">
+        <div class="setting-label">Backend</div>
+        <div class="segmented">
+          <button type="button" class="segment active" data-backend="auto">Auto</button>
+          <button type="button" class="segment" data-backend="ollama">Ollama</button>
+          <button type="button" class="segment" data-backend="openrouter">OpenRouter</button>
+        </div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-label">Quick models</div>
+        <div id="model-pills" class="pill-list"></div>
+      </div>
+      <div class="setting-card wide">
+        <div class="setting-label">Runtime view</div>
+        <div class="segmented">
+          <button type="button" class="segment active" data-view="balanced">Balanced</button>
+          <button type="button" class="segment" data-view="focus">Focus</button>
+          <button type="button" class="segment" data-view="terminal">Terminal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="state-bar"></div>
+
+  <div id="main">
+    <div id="chat-col">
+      <div id="log"></div>
+      <form id="composer">
+        <textarea id="text" rows="1" placeholder="Say something…" autofocus></textarea>
+        <button class="primary" id="send" type="submit">Send</button>
+      </form>
+    </div>
+    <div id="aux-panel" class="hidden">
+      <div id="aux-header">
+        <span id="aux-title">FILES</span>
+        <button class="small-btn" id="aux-close">×</button>
+      </div>
+      <div id="aux-body"></div>
+    </div>
+    <div id="terminal-col">
+      <div id="terminal-header">
+        <span>LIVE ACTIVITY</span>
+        <span id="terminal-status">connecting…</span>
+      </div>
+      <div id="terminal"></div>
+    </div>
+  </div>
+
+<script>
+  const log = document.getElementById('log');
+  const statusEl = document.getElementById('status');
+  const stateBar = document.getElementById('state-bar');
+  const form = document.getElementById('composer');
+  const textEl = document.getElementById('text');
+  const sendBtn = document.getElementById('send');
+  const agentSelect = document.getElementById('agent-select');
+  const modelSelect = document.getElementById('model-select');
+  const modelPills = document.getElementById('model-pills');
+  const customModel = document.getElementById('custom-model');
+  const applyModelBtn = document.getElementById('apply-model');
+  const settingsPanel = document.getElementById('settings-panel');
+  const settingsToggle = document.getElementById('toggle-settings');
+  const terminal = document.getElementById('terminal');
+  const terminalStatus = document.getElementById('terminal-status');
+  const tabBar = document.getElementById('tab-bar');
+  const auxPanel = document.getElementById('aux-panel');
+  const auxTitle = document.getElementById('aux-title');
+  const auxBody = document.getElementById('aux-body');
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = cls || '';
+  }
+
+  // ============================================================
+  // Tabs — each is an independent conversation: its own session id,
+  // own WebSocket, own message history, own operator/model underneath.
+  // ============================================================
+  const tabs = new Map(); // id -> { id, label, ws, connected, messages, unread }
+  let activeTabId = null;
+
+  function newSessionId() {
+    return (crypto.randomUUID ? crypto.randomUUID() : 'sess-' + Math.random().toString(36).slice(2) + Date.now());
+  }
+
+  function wsUrlFor(session) {
+    return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?session=' + encodeURIComponent(session);
+  }
+
+  function connectTabWs(tab) {
+    const ws = new WebSocket(wsUrlFor(tab.id));
+    tab.ws = ws;
+    ws.onopen = () => { tab.connected = true; if (tab.id === activeTabId) setStatus('connected', 'connected'); };
+    ws.onclose = () => {
+      tab.connected = false;
+      if (tab.id === activeTabId) setStatus('disconnected — retrying…', 'error');
+      if (tabs.has(tab.id)) setTimeout(() => connectTabWs(tab), 2000);
+    };
+    ws.onerror = () => { if (tab.id === activeTabId) setStatus('connection error', 'error'); };
+    ws.onmessage = (event) => {
+      let text;
+      try { text = JSON.parse(event.data).text ?? event.data; } catch { text = event.data; }
+      tab.messages.push({ role: 'agent', text });
+      if (tab.id === activeTabId) renderLog();
+      else { tab.unread = true; renderTabBar(); }
+    };
+  }
+
+  function createTab(label) {
+    const id = newSessionId();
+    const tab = { id, label: label || 'New Tab', ws: null, connected: false, messages: [], unread: false };
+    tabs.set(id, tab);
+    connectTabWs(tab);
+    switchTab(id);
+    return tab;
+  }
+
+  function closeTab(id) {
+    const tab = tabs.get(id);
+    if (!tab) return;
+    try { tab.ws?.close(); } catch { /* already closed */ }
+    tabs.delete(id);
+    if (tabs.size === 0) { createTab('SparkByte'); return; }
+    if (activeTabId === id) switchTab([...tabs.keys()][0]);
+    else renderTabBar();
+  }
+
+  function switchTab(id) {
+    const tab = tabs.get(id);
+    if (!tab) return;
+    activeTabId = id;
+    tab.unread = false;
+    renderTabBar();
+    renderLog();
+    setStatus(tab.connected ? 'connected' : 'connecting…', tab.connected ? 'connected' : '');
+    loadAgents();
+    loadModel();
+    pollState();
+    if (auxMode === 'tools') renderTools();
+  }
+
+  function renderTabBar() {
+    tabBar.innerHTML = '';
+    for (const tab of tabs.values()) {
+      const el = document.createElement('div');
+      el.className = 'tab' + (tab.id === activeTabId ? ' active' : '') + (tab.unread ? ' unread' : '');
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'tab-label';
+      labelSpan.textContent = tab.label;
+      labelSpan.addEventListener('click', () => switchTab(tab.id));
+      const closeSpan = document.createElement('span');
+      closeSpan.className = 'tab-close';
+      closeSpan.textContent = '×';
+      closeSpan.addEventListener('click', (e) => { e.stopPropagation(); closeTab(tab.id); });
+      el.appendChild(labelSpan);
+      el.appendChild(closeSpan);
+      tabBar.appendChild(el);
+    }
+    const addBtn = document.createElement('button');
+    addBtn.className = 'tab-add';
+    addBtn.textContent = '+';
+    addBtn.title = 'New tab';
+    addBtn.addEventListener('click', () => createTab('New Tab'));
+    tabBar.appendChild(addBtn);
+  }
+
+  function addMsgDom(role, text) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = text;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function renderLog() {
+    log.innerHTML = '';
+    const tab = tabs.get(activeTabId);
+    if (!tab) return;
+    for (const m of tab.messages) addMsgDom(m.role, m.text);
+  }
+
+  function addMsg(role, text) {
+    const tab = tabs.get(activeTabId);
+    if (tab) tab.messages.push({ role, text });
+    addMsgDom(role, text);
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const tab = tabs.get(activeTabId);
+    const text = textEl.value.trim();
+    if (!text || !tab || tab.ws?.readyState !== WebSocket.OPEN) return;
+    addMsg('user', text);
+    tab.ws.send(JSON.stringify({ text }));
+    textEl.value = '';
+  });
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  // --- Live-activity terminal socket (global — shows every tab's activity) ---
+  const logsWsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/logs';
+  let logsWs;
+
+  function summarize(entry) {
+    switch (entry.event) {
+      case 'tool_call': return `${entry.tool_name}(${JSON.stringify(entry.args ?? {})})`;
+      case 'tool_result': return `${entry.tool_name} -> ${entry.is_error ? 'ERROR' : 'ok'} (${entry.elapsed_ms}ms)`;
+      case 'turn_complete': return `agent=${entry.agent} (${entry.elapsed_ms}ms)`;
+      case 'error': return `${entry.context}: ${entry.error_msg}`;
+      case 'model_change': return `${entry.from} -> ${entry.to}`;
+      case 'agent_change': return `${entry.from} -> ${entry.to}`;
+      case 'tool_loop_guard': return `${entry.reason}`;
+      case 'ws_in': return entry.text_preview ?? '';
+      case 'ws_out': return entry.msg_type ?? '';
+      default: return JSON.stringify(entry);
+    }
+  }
+
+  // Events too big for a one-liner (the "thought process", full prompts, and
+  // raw network traffic) render as a collapsible block instead.
+  const BLOCK_EVENTS = { engine_snapshot: true, system_prompt: true, api_request: true, api_response: true };
+
+  function blockSummaryAndBody(entry) {
+    switch (entry.event) {
+      case 'engine_snapshot': {
+        const { timestamp, session_id, event, ...rest } = entry;
+        return [`gait=${entry.gait} rhythm=${entry.rhythm?.mode} aperture=${entry.aperture?.mode} drift=${entry.drift?.actionLevel}`, JSON.stringify(rest, null, 2)];
+      }
+      case 'system_prompt':
+        return [`${entry.engine_agent} (${entry.prompt_len} chars)`, entry.prompt_head ?? ''];
+      case 'api_request':
+        return [`${entry.model} -> ${entry.endpoint}`, (() => { try { return JSON.stringify(JSON.parse(entry.body), null, 2); } catch { return entry.body ?? ''; } })()];
+      case 'api_response':
+        return [`HTTP ${entry.status}`, (() => { try { return JSON.stringify(JSON.parse(entry.body), null, 2); } catch { return entry.body ?? ''; } })()];
+      default:
+        return ['', JSON.stringify(entry, null, 2)];
+    }
+  }
+
+  function addTerminalLine(entry) {
+    const div = document.createElement('div');
+    const cls = ['tool_call','tool_result','error','turn_complete','model_change','agent_change','tool_loop_guard','engine_snapshot','api_request','api_response','system_prompt'].includes(entry.event) ? entry.event : 'default';
+    div.className = 'tline ev-' + cls;
+    const ts = entry.timestamp ? entry.timestamp.slice(11, 19) : '';
+
+    if (BLOCK_EVENTS[entry.event]) {
+      const [summary, body] = blockSummaryAndBody(entry);
+      div.innerHTML = `<span class="ts">${ts}</span> <span class="ev">${entry.event}</span> ` +
+        `<details class="tblock"><summary>${escapeHtml(summary)}</summary><pre>${escapeHtml(body)}</pre></details>`;
+    } else {
+      div.innerHTML = `<span class="ts">${ts}</span> <span class="ev">${entry.event}</span> ${escapeHtml(summarize(entry))}`;
+    }
+
+    terminal.appendChild(div);
+    while (terminal.childNodes.length > 500) terminal.removeChild(terminal.firstChild);
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function connectLogs() {
+    logsWs = new WebSocket(logsWsUrl);
+    logsWs.onopen = () => terminalStatus.textContent = 'live';
+    logsWs.onclose = () => { terminalStatus.textContent = 'reconnecting…'; setTimeout(connectLogs, 2000); };
+    logsWs.onerror = () => terminalStatus.textContent = 'error';
+    logsWs.onmessage = (event) => {
+      try { addTerminalLine(JSON.parse(event.data)); } catch { /* ignore malformed frame */ }
+    };
+  }
+  connectLogs();
+
+  // --- Operator (agent) switcher — acts on the active tab's session ---
+  async function loadAgents() {
+    try {
+      const res = await fetch('/api/agents?session=' + encodeURIComponent(activeTabId));
+      if (!res.ok) return;
+      const data = await res.json();
+      agentSelect.innerHTML = '';
+      for (const name of data.agents) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === data.current) opt.selected = true;
+        agentSelect.appendChild(opt);
+      }
+      const tab = tabs.get(activeTabId);
+      if (tab && tab.label !== data.current) { tab.label = data.current; renderTabBar(); }
+    } catch { /* engine may still be starting up */ }
+  }
+  agentSelect.addEventListener('change', async () => {
+    await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: activeTabId, name: agentSelect.value }),
+    });
+    addMsg('system', `Switched operator to ${agentSelect.value}.`);
+    pollState();
+    loadAgents();
+  });
+
+  // --- Model selector — acts on the active tab's session ---
+  async function loadModel() {
+    try {
+      const res = await fetch('/api/model?session=' + encodeURIComponent(activeTabId));
+      if (!res.ok) return;
+      const data = await res.json();
+      modelSelect.innerHTML = '';
+      for (const m of data.presets) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        modelSelect.appendChild(opt);
+      }
+      const customOpt = document.createElement('option');
+      customOpt.value = '__custom__';
+      customOpt.textContent = 'Custom…';
+      modelSelect.appendChild(customOpt);
+
+      document.querySelectorAll('.segment[data-backend]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.backend === (data.backend || 'auto'));
+      });
+
+      if (data.presets.includes(data.model)) {
+        modelSelect.value = data.model;
+        customModel.style.display = 'none';
+      } else {
+        modelSelect.value = '__custom__';
+        customModel.style.display = 'inline-block';
+        customModel.value = data.model;
+      }
+
+      renderModelPills(data.presets || []);
+    } catch { /* engine may still be starting up */ }
+  }
+  function renderModelPills(presets = []) {
+    modelPills.innerHTML = '';
+    for (const preset of presets) {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'model-pill';
+      pill.textContent = preset;
+      if (modelSelect.value === preset) pill.classList.add('active');
+      pill.addEventListener('click', () => {
+        modelSelect.value = preset;
+        customModel.style.display = 'none';
+        modelSelect.dispatchEvent(new Event('change'));
+        applyModelBtn.click();
+      });
+      modelPills.appendChild(pill);
+    }
+  }
+
+  modelSelect.addEventListener('change', () => {
+    customModel.style.display = modelSelect.value === '__custom__' ? 'inline-block' : 'none';
+    renderModelPills(Array.from(modelSelect.options).map(opt => opt.value).filter(v => v !== '__custom__'));
+  });
+
+  applyModelBtn.addEventListener('click', async () => {
+    const model = modelSelect.value === '__custom__' ? customModel.value.trim() : modelSelect.value;
+    if (!model) return;
+    const res = await fetch('/api/model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: activeTabId, model }),
+    });
+    if (res.ok) addMsg('system', `Model set to ${model}.`);
+    renderModelPills(Array.from(modelSelect.options).map(opt => opt.value).filter(v => v !== '__custom__'));
+  });
+
+  settingsToggle.addEventListener('click', () => {
+    settingsPanel.classList.toggle('hidden');
+    settingsToggle.classList.toggle('active-toggle', !settingsPanel.classList.contains('hidden'));
+  });
+
+  async function setBackendSelection(backend) {
+    const res = await fetch('/api/backend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: activeTabId, backend }),
+    });
+    if (res.ok) {
+      document.querySelectorAll('.segment[data-backend]').forEach(v => v.classList.toggle('active', v.dataset.backend === backend));
+      addMsg('system', `Backend preference set to ${backend}.`);
+      await loadModel();
+    }
+  }
+
+  document.querySelectorAll('.segment[data-backend]').forEach(btn => {
+    btn.addEventListener('click', () => setBackendSelection(btn.dataset.backend));
+  });
+
+  document.querySelectorAll('.segment[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.segment[data-view]').forEach(v => v.classList.toggle('active', v === btn));
+      document.body.dataset.view = btn.dataset.view;
+    });
+  });
+
+  // --- Cognitive state panel — reflects the active tab's session ---
+  function renderState(s) {
+    stateBar.innerHTML = '';
+    const entries = [
+      ['agent', s.agent],
+      ['gait', s.gait],
+      ['rhythm', s.rhythmMode],
+      ['aperture', s.apertureMode],
+      ['emotion', s.emotion ?? '—'],
+      ['investment', s.investmentGear],
+      ['stability', (s.stability * 100).toFixed(0) + '%'],
+    ];
+    for (const [label, value] of entries) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = label + ': <b>' + escapeHtml(value) + '</b>';
+      stateBar.appendChild(chip);
+    }
+  }
+
+  async function pollState() {
+    if (!activeTabId) return;
+    try {
+      const res = await fetch('/api/state?session=' + encodeURIComponent(activeTabId));
+      if (res.ok) renderState(await res.json());
+    } catch { /* engine may still be starting up */ }
+  }
+  setInterval(pollState, 2000);
+
+  // ============================================================
+  // Aux panel — Files browser or Tool catalog, whichever is toggled on.
+  // ============================================================
+  let auxMode = null; // null | 'files' | 'tools'
+  let currentFsPath = '';
+
+  function setAux(mode) {
+    document.getElementById('toggle-files').classList.toggle('active-toggle', mode === 'files');
+    document.getElementById('toggle-tools').classList.toggle('active-toggle', mode === 'tools');
+    if (auxMode === mode) { auxMode = null; auxPanel.classList.add('hidden'); return; }
+    auxMode = mode;
+    auxPanel.classList.remove('hidden');
+    auxTitle.textContent = mode === 'files' ? 'FILES' : 'TOOLS';
+    if (mode === 'files') renderFiles(currentFsPath);
+    else renderTools();
+  }
+  document.getElementById('toggle-files').addEventListener('click', () => setAux('files'));
+  document.getElementById('toggle-tools').addEventListener('click', () => setAux('tools'));
+  document.getElementById('aux-close').addEventListener('click', () => {
+    auxMode = null;
+    auxPanel.classList.add('hidden');
+    document.getElementById('toggle-files').classList.remove('active-toggle');
+    document.getElementById('toggle-tools').classList.remove('active-toggle');
+  });
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  async function renderFiles(path) {
+    currentFsPath = path || '';
+    auxBody.innerHTML = '<div class="fs-loading">Loading…</div>';
+    try {
+      const res = await fetch('/api/fs/list?path=' + encodeURIComponent(currentFsPath));
+      if (!res.ok) { auxBody.innerHTML = '<div class="fs-error">Could not list this folder.</div>'; return; }
+      const data = await res.json();
+      auxBody.innerHTML = '';
+
+      const bar = document.createElement('div');
+      bar.className = 'fs-path';
+      bar.textContent = data.path || '(Drives)';
+      auxBody.appendChild(bar);
+
+      if (data.parent) {
+        const up = document.createElement('div');
+        up.className = 'fs-entry fs-dir';
+        up.textContent = '.. (up)';
+        up.addEventListener('click', () => renderFiles(data.parent));
+        auxBody.appendChild(up);
+      } else if (data.path) {
+        const up = document.createElement('div');
+        up.className = 'fs-entry fs-dir';
+        up.textContent = '.. (drives)';
+        up.addEventListener('click', () => renderFiles(''));
+        auxBody.appendChild(up);
+      }
+
+      const dirs = data.entries.filter(e => e.isDirectory).sort((a, b) => a.name.localeCompare(b.name));
+      const files = data.entries.filter(e => !e.isDirectory).sort((a, b) => a.name.localeCompare(b.name));
+
+      for (const d of dirs) {
+        const el = document.createElement('div');
+        el.className = 'fs-entry fs-dir';
+        el.textContent = '\u{1F4C1} ' + d.name;
+        el.addEventListener('click', () => renderFiles(d.fullPath));
+        auxBody.appendChild(el);
+      }
+      for (const f of files) {
+        const el = document.createElement('div');
+        el.className = 'fs-entry fs-file';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = '\u{1F4C4} ' + f.name + (f.size != null ? ` (${formatSize(f.size)})` : '');
+        nameSpan.addEventListener('click', () => previewFile(f.fullPath));
+        const attachBtn = document.createElement('button');
+        attachBtn.className = 'small-btn fs-attach';
+        attachBtn.textContent = 'Attach';
+        attachBtn.addEventListener('click', (e) => { e.stopPropagation(); attachFile(f.fullPath); });
+        el.appendChild(nameSpan);
+        el.appendChild(attachBtn);
+        auxBody.appendChild(el);
+      }
+    } catch {
+      auxBody.innerHTML = '<div class="fs-error">Could not reach the engine.</div>';
+    }
+  }
+
+  async function previewFile(path) {
+    try {
+      const res = await fetch('/api/fs/read?path=' + encodeURIComponent(path));
+      const data = await res.json();
+      const pre = document.createElement('pre');
+      pre.className = 'fs-preview';
+      pre.textContent = data.content ?? '';
+      auxBody.appendChild(pre);
+    } catch { /* leave the list as-is */ }
+  }
+
+  async function attachFile(path) {
+    try {
+      const res = await fetch('/api/fs/read?path=' + encodeURIComponent(path));
+      const data = await res.json();
+      const block = `\n\n[Attached: ${path}]\n\`\`\`\n${data.content ?? ''}\n\`\`\`\n`;
+      textEl.value += block;
+      textEl.focus();
+    } catch { /* nothing to attach */ }
+  }
+
+  async function renderTools() {
+    auxBody.innerHTML = '<div class="fs-loading">Loading…</div>';
+    try {
+      const res = await fetch('/api/tools?session=' + encodeURIComponent(activeTabId));
+      if (!res.ok) { auxBody.innerHTML = '<div class="fs-error">Could not load tools.</div>'; return; }
+      const data = await res.json();
+      auxBody.innerHTML = '';
+      for (const t of data.tools) {
+        const row = document.createElement('label');
+        row.className = 'tool-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = t.enabled;
+        cb.addEventListener('change', async () => {
+          await fetch('/api/tools', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: activeTabId, name: t.name, enabled: cb.checked }),
+          });
+        });
+        const label = document.createElement('div');
+        label.innerHTML = `<b>${escapeHtml(t.name)}</b>${t.dynamic ? ' <span class="tool-dynamic">forged</span>' : ''}` +
+          `<div class="tool-desc">${escapeHtml(t.description)}</div>`;
+        row.appendChild(cb);
+        row.appendChild(label);
+        auxBody.appendChild(row);
+      }
+    } catch {
+      auxBody.innerHTML = '<div class="fs-error">Could not reach the engine.</div>';
+    }
+  }
+
+  // --- Boot: one initial tab, its label self-corrects once loadAgents() runs ---
+  createTab('SparkByte');
+  addMsg('system', 'Connected to JL Engine. Say hello.');
+</script>
+</body>
+</html>

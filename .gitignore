@@ -1,0 +1,32 @@
+# Build outputs
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.dbmdl
+*.cache
+
+# Test results
+TestResults/
+*.trx
+
+# NuGet
+packages/
+*.nupkg
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# GitHub / secrets
+.env
+*.pem
+*.key
