@@ -1,8 +1,10 @@
 # Build outputs
 bin/
 obj/
+publish/
 [Bb]in/
 [Oo]bj/
+[Pp]ublish/
 
 # Visual Studio / VS Code
 .vs/
