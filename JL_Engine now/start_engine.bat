@@ -31,7 +31,7 @@ if not exist "%EXE%" (
 )
 
 if not exist "%ROOT%data" mkdir "%ROOT%data"
-cd /d "%ROOT%"
+cd /d "%ROOT%data"
 
 echo Starting JL Engine...
 echo Chat GUI: http://127.0.0.1:8081/
