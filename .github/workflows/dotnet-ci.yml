@@ -13,38 +13,35 @@ permissions:
 jobs:
   sdk-check:
     name: Install and verify .NET 10 SDK
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
-      - name: Install .NET 10 SDK
-        shell: pwsh
-        run: choco install dotnet-sdk --version=10.0.100 --yes --no-progress
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
       - name: Verify SDK
-        shell: pwsh
-        run: |
-          refreshenv
-          dotnet --info
+        run: dotnet --info
 
   restore:
     name: Restore solution
     needs: sdk-check
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install .NET 10 SDK
-        shell: pwsh
-        run: choco install dotnet-sdk --version=10.0.100 --yes --no-progress
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
       - name: Restore
         run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
 
   test:
     name: Compile and test
     needs: restore
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install .NET 10 SDK
-        shell: pwsh
-        run: choco install dotnet-sdk --version=10.0.100 --yes --no-progress
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
       - name: Run Release tests
         run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release
 
@@ -54,9 +51,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install .NET 10 SDK
-        shell: pwsh
-        run: choco install dotnet-sdk --version=10.0.100 --yes --no-progress
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
       - name: Publish self-contained Windows build
         run: dotnet publish "JL_Engine now/dotnet/JLEngine.Host/JLEngine.Host.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/JLEngine-win-x64
       - name: Install Inno Setup
