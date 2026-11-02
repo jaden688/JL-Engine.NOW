@@ -300,14 +300,18 @@
     ws.onopen = async () => {
       tab.connected = true;
       if (tab.id === activeTabId) setStatus('connected', 'connected');
+      const liveMessageStart = tab.messages.length;
       try {
         const res = await fetch('/api/history?session=' + encodeURIComponent(tab.id));
         if (res.ok && tabs.has(tab.id)) {
           const data = await res.json();
-          tab.messages = (data.messages || []).map(m => ({
+          const restored = (data.messages || []).map(m => ({
             role: m.role === 'assistant' ? 'agent' : m.role,
             text: m.content ?? ''
           }));
+          // Preserve any live replies that arrived while the history request
+          // was in flight instead of overwriting them with the older snapshot.
+          tab.messages = restored.concat(tab.messages.slice(liveMessageStart));
           if (tab.id === activeTabId) renderLog();
         }
       } catch { /* the live socket remains usable if history cannot be loaded */ }
