@@ -19,10 +19,23 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Show SDK
-        run: dotnet --info
-      - name: Restore solution
-        run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
+      - name: Capture SDK and restore diagnostics
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          dotnet --info | Tee-Object -FilePath artifacts/sdk-info.txt
+          dotnet restore "JL_Engine now/dotnet/JLEngine.sln" --verbosity normal *> artifacts/restore.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content artifacts/restore.log -Tail 100
+            exit $LASTEXITCODE
+          }
+      - name: Upload restore diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-diagnostics
+          path: artifacts/
+          if-no-files-found: warn
 
   test:
     name: Compile and test solution
