@@ -241,7 +241,7 @@ public sealed class AgentRuntime(
     private async Task<(Dictionary<string, object?>? Message, string? Error)> CallChatCompletionsAsync(
         string model, List<Dictionary<string, object?>> messages, List<Dictionary<string, object?>> toolsArray, double temperature, double topP)
     {
-        var apiKey = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+        var apiKey = OpenRouterKeyStore.GetKey();
         if (string.IsNullOrEmpty(apiKey))
         {
             return (null, "OpenRouter API key is not set.");
