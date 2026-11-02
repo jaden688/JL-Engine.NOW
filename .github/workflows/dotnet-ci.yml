@@ -15,7 +15,7 @@ jobs:
     name: Install and verify .NET 10 SDK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.100
       - name: Verify SDK
@@ -26,8 +26,8 @@ jobs:
     needs: sdk-check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.100
       - name: Restore
@@ -38,8 +38,8 @@ jobs:
     needs: restore
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.100
       - name: Run Release tests
@@ -50,8 +50,8 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.100
       - name: Publish self-contained Windows build
@@ -67,13 +67,13 @@ jobs:
           & $compiler "JL_Engine now/packaging/windows/JL-Engine.iss"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: JL-Engine-Windows-Installer
           path: artifacts/JL-Engine-Setup.exe
           if-no-files-found: error
       - name: Upload portable publish folder
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: JLEngine-win-x64
           path: artifacts/JLEngine-win-x64/
