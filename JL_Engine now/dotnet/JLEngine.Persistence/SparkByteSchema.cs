@@ -6,7 +6,7 @@ namespace JLEngine.Persistence;
 /// Port of `_open_memory_db`'s CREATE TABLE statements (src/App.jl:60-116)
 /// and the index list (src/App.jl:291-304). Exact column-for-column match
 /// with the live sparkbyte_memory.db schema confirmed via direct sqlite3
-/// inspection. Covers the 10 core tables; the 4 A2A-specific tables
+/// inspection. Covers the core tables, including durable chat transcripts; the 4 A2A-specific tables
 /// (a2a_tasks, a2a_push_notification_configs, a2a_accounts, a2a_usage_ledger)
 /// are deferred to Phase 4 along with the A2A server itself.
 ///
