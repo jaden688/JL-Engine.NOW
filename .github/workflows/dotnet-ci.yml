@@ -11,15 +11,32 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Restore, compile, and test
+  sdk-check:
+    name: Verify .NET 10 SDK container
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    steps:
+      - name: Show SDK
+        run: dotnet --info
+
+  restore:
+    name: Restore solution
+    needs: sdk-check
     runs-on: ubuntu-latest
     container: mcr.microsoft.com/dotnet/sdk:10.0
     steps:
       - uses: actions/checkout@v4
-      - name: Show SDK
-        run: dotnet --info
-      - name: Restore solution
+      - name: Restore
+        run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
+
+  test:
+    name: Compile and test
+    needs: restore
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore test dependencies
         run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
       - name: Run Release tests
         run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release --no-restore
@@ -33,8 +50,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.100
-      - name: Show SDK
-        run: dotnet --info
       - name: Publish self-contained Windows build
         run: dotnet publish "JL_Engine now/dotnet/JLEngine.Host/JLEngine.Host.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/JLEngine-win-x64
       - name: Install Inno Setup
