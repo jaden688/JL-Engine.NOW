@@ -131,7 +131,9 @@ public static class RuntimeComposition
         }
 
         var agentRuntime = new AgentRuntime(engine, toolRegistry, telemetry, http, ToolSchemas.All(), db);
-        return new ChatSession { Id = sessionId, Engine = engine, Tools = toolRegistry, Runtime = agentRuntime };
+        var chat = new ChatSession { Id = sessionId, Engine = engine, Tools = toolRegistry, Runtime = agentRuntime };
+        chat.History.AddRange(db.ReadConversationHistory(sessionId));
+        return chat;
     }
 
     /// <summary>Wires every HTTP/WS endpoint the GUI (and A2A/Autopilot,
@@ -146,6 +148,14 @@ public static class RuntimeComposition
 
         app.UseWebSockets();
         app.MapGet("/health", () => Results.Ok(new { status = "ok", sessions = sessions.ActiveIds.Count }));
+
+        // Visible transcript for a session, used by the GUI when a saved tab
+        // reconnects after a browser or engine restart.
+        app.MapGet("/api/history", async (string session) =>
+        {
+            var chat = await sessions.GetOrCreateAsync(session);
+            return Results.Ok(new { messages = chat.History });
+        });
 
         // Cognitive-state snapshot for one session's status bar — read-only,
         // reflects whatever that session's engine was left at after its last turn.
@@ -200,8 +210,12 @@ public static class RuntimeComposition
                 }
 
                 var reply = await chat.Runtime.ProcessMessageAsync(userText, chat.History, chat.Runtime.CurrentModel);
-                chat.History.Add(new Dictionary<string, object?> { ["role"] = "user", ["content"] = userText });
-                chat.History.Add(new Dictionary<string, object?> { ["role"] = "assistant", ["content"] = reply });
+                var userMessage = new Dictionary<string, object?> { ["role"] = "user", ["content"] = userText };
+                var assistantMessage = new Dictionary<string, object?> { ["role"] = "assistant", ["content"] = reply };
+                chat.History.Add(userMessage);
+                chat.History.Add(assistantMessage);
+                db.WriteConversationMessage(sessionId, "user", userText);
+                db.WriteConversationMessage(sessionId, "assistant", reply);
 
                 var replyJson = JsonSerializer.Serialize(new { type = "reply", text = reply });
                 telemetry.LogWsOut("reply");
