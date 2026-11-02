@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Microsoft.Data.Sqlite;
+using JLEngine.Persistence;
 
 namespace JLEngine.Runtime;
 
@@ -15,7 +15,7 @@ public sealed partial class Telemetry
 {
     private readonly object _lock = new();
     private readonly string _path;
-    private readonly SqliteConnection? _db;
+    private readonly SparkByteDatabase? _db;
     private readonly string _sessionId = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
 
     public string SessionId => _sessionId;
@@ -25,7 +25,7 @@ public sealed partial class Telemetry
     /// polling the JSONL/SQLite log.</summary>
     public event Action<Dictionary<string, object?>>? OnEvent;
 
-    public Telemetry(string projectRoot, SqliteConnection? db = null)
+    public Telemetry(string projectRoot, SparkByteDatabase? db = null)
     {
         var telemetryRoot = Path.Combine(projectRoot, "logs");
         Directory.CreateDirectory(telemetryRoot);
@@ -83,23 +83,7 @@ public sealed partial class Telemetry
             File.AppendAllText(_path, line + Environment.NewLine);
         }
 
-        if (_db is not null)
-        {
-            try
-            {
-                using var cmd = _db.CreateCommand();
-                cmd.CommandText = "INSERT INTO telemetry (timestamp, session_id, event, data_json) VALUES ($ts, $sid, $ev, $data)";
-                cmd.Parameters.AddWithValue("$ts", entry["timestamp"]!.ToString()!);
-                cmd.Parameters.AddWithValue("$sid", _sessionId);
-                cmd.Parameters.AddWithValue("$ev", eventName);
-                cmd.Parameters.AddWithValue("$data", line);
-                cmd.ExecuteNonQuery();
-            }
-            catch
-            {
-                // telemetry must never break the caller
-            }
-        }
+        _db?.WriteTelemetryEvent(entry["timestamp"]!.ToString()!, _sessionId, eventName, line);
 
         try { OnEvent?.Invoke(entry); } catch { /* a slow/broken GUI subscriber must never break a turn */ }
     }
