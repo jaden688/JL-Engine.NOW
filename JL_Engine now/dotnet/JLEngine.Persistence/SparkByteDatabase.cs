@@ -28,6 +28,55 @@ public sealed class SparkByteDatabase : IDisposable
         return text.Length <= max ? text : text[..max];
     }
 
+    /// <summary>Persist one visible chat message. Message content is stored
+    /// verbatim so a session can be reconstructed after the process exits.</summary>
+    public void WriteConversationMessage(string sessionId, string role, string content)
+    {
+        Try(() =>
+        {
+            using var cmd = Connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO conversation_messages (session_id, role, content, created_at)
+                VALUES ($sid, $role, $content, $created)
+                """;
+            cmd.Parameters.AddWithValue("$sid", sessionId);
+            cmd.Parameters.AddWithValue("$role", role);
+            cmd.Parameters.AddWithValue("$content", content);
+            cmd.Parameters.AddWithValue("$created", DateTime.UtcNow.ToString("O"));
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>Restore the visible transcript in insertion order for one
+    /// session. Returns an empty history when no messages have been saved.</summary>
+    public List<Dictionary<string, object?>> ReadConversationHistory(string sessionId)
+    {
+        var history = new List<Dictionary<string, object?>>();
+        try
+        {
+            using var cmd = Connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT role, content FROM conversation_messages
+                WHERE session_id = $sid ORDER BY id
+                """;
+            cmd.Parameters.AddWithValue("$sid", sessionId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                history.Add(new Dictionary<string, object?>
+                {
+                    ["role"] = reader.GetString(0),
+                    ["content"] = reader.GetString(1),
+                });
+            }
+        }
+        catch
+        {
+            // A transcript read failure must not prevent the engine from starting.
+        }
+        return history;
+    }
+
     public void WriteThought(string context, string thought, string mood, string gait, string agent = "SparkByte", string type = "diary", string model = "")
     {
         Try(() =>
