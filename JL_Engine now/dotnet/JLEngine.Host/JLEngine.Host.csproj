@@ -18,7 +18,7 @@
          the chat GUI's assets need to physically land in the output
          directory rather than being served from the source tree via the
          static-web-assets manifest that Microsoft.NET.Sdk.Web normally uses. -->
-    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
