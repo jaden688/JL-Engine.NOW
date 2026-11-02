@@ -70,7 +70,7 @@ public static class RuntimeComposition
         // Full 10-table sparkbyte_memory.db schema (Phase 3) — one connection,
         // shared by every session's tool-usage/turn-snapshot writes.
         var db = new SparkByteDatabase(Path.Combine(stateDir, "sparkbyte_memory.db"));
-        var telemetry = new Telemetry(projectRoot, db.Connection);
+        var telemetry = new Telemetry(projectRoot, db);
         db.StartSession(telemetry.SessionId, Environment.OSVersion.ToString(), Environment.Version.ToString());
 
         return new SharedComponents(projectRoot, stateDir, telemetry, db, new HttpClient());
