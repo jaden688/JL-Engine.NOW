@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Restore and test
+  restore:
+    name: SDK and dependency restore
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,9 +21,21 @@ jobs:
           dotnet-version: 10.0.x
       - name: Show SDK
         run: dotnet --info
-      - name: Restore
+      - name: Restore solution
         run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
-      - name: Test
+
+  test:
+    name: Compile and test solution
+    needs: restore
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore test dependencies
+        run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
+      - name: Run Release tests
         run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release --no-restore
 
   package:
