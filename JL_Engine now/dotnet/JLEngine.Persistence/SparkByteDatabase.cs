@@ -13,6 +13,7 @@ namespace JLEngine.Persistence;
 public sealed class SparkByteDatabase : IDisposable
 {
     public SqliteConnection Connection { get; }
+    private readonly object _sync = new();
 
     public SparkByteDatabase(string dbPath)
     {
@@ -52,27 +53,30 @@ public sealed class SparkByteDatabase : IDisposable
     public List<Dictionary<string, object?>> ReadConversationHistory(string sessionId)
     {
         var history = new List<Dictionary<string, object?>>();
-        try
+        lock (_sync)
         {
-            using var cmd = Connection.CreateCommand();
-            cmd.CommandText = """
-                SELECT role, content FROM conversation_messages
-                WHERE session_id = $sid ORDER BY id
-                """;
-            cmd.Parameters.AddWithValue("$sid", sessionId);
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            try
             {
-                history.Add(new Dictionary<string, object?>
+                using var cmd = Connection.CreateCommand();
+                cmd.CommandText = """
+                    SELECT role, content FROM conversation_messages
+                    WHERE session_id = $sid ORDER BY id
+                    """;
+                cmd.Parameters.AddWithValue("$sid", sessionId);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
                 {
-                    ["role"] = reader.GetString(0),
-                    ["content"] = reader.GetString(1),
-                });
+                    history.Add(new Dictionary<string, object?>
+                    {
+                        ["role"] = reader.GetString(0),
+                        ["content"] = reader.GetString(1),
+                    });
+                }
             }
-        }
-        catch
-        {
-            // A transcript read failure must not prevent the engine from starting.
+            catch
+            {
+                // A transcript read failure must not prevent the engine from starting.
+            }
         }
         return history;
     }
@@ -275,13 +279,16 @@ public sealed class SparkByteDatabase : IDisposable
 
     private static void Try(Action action)
     {
-        try
+        lock (_sync)
         {
-            action();
-        }
-        catch
-        {
-            // Persistence writes must never break the caller's actual turn/tool-call.
+            try
+            {
+                action();
+            }
+            catch
+            {
+                // Persistence writes must never break the caller's actual turn/tool-call.
+            }
         }
     }
 
