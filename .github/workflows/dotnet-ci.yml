@@ -11,51 +11,30 @@ permissions:
   contents: read
 
 jobs:
-  sdk-check:
-    name: Verify runner .NET SDK
-    runs-on: windows-latest
-    steps:
-      - name: Show installed SDKs
-        run: dotnet --info
-
-  restore:
-    name: Restore solution dependencies
-    needs: sdk-check
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force artifacts | Out-Null
-          dotnet restore "JL_Engine now/dotnet/JLEngine.sln" --verbosity normal *> artifacts/restore.log
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content artifacts/restore.log -Tail 100
-            exit $LASTEXITCODE
-          }
-      - name: Upload restore diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: restore-diagnostics
-          path: artifacts/
-          if-no-files-found: warn
-
   test:
-    name: Compile and test solution
-    needs: restore
-    runs-on: windows-latest
+    name: Restore, compile, and test
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/dotnet/sdk:10.0
     steps:
       - uses: actions/checkout@v4
+      - name: Show SDK
+        run: dotnet --info
+      - name: Restore solution
+        run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
       - name: Run Release tests
-        run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release
+        run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release --no-restore
 
   package:
-    name: Publish and build installer
+    name: Publish and build Windows installer
     needs: test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.100
+      - name: Show SDK
+        run: dotnet --info
       - name: Publish self-contained Windows build
         run: dotnet publish "JL_Engine now/dotnet/JLEngine.Host/JLEngine.Host.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/JLEngine-win-x64
       - name: Install Inno Setup
