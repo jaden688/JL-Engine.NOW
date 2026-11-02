@@ -243,7 +243,21 @@
   function connectTabWs(tab) {
     const ws = new WebSocket(wsUrlFor(tab.id));
     tab.ws = ws;
-    ws.onopen = () => { tab.connected = true; if (tab.id === activeTabId) setStatus('connected', 'connected'); };
+    ws.onopen = async () => {
+      tab.connected = true;
+      if (tab.id === activeTabId) setStatus('connected', 'connected');
+      try {
+        const res = await fetch('/api/history?session=' + encodeURIComponent(tab.id));
+        if (res.ok && tabs.has(tab.id)) {
+          const data = await res.json();
+          tab.messages = (data.messages || []).map(m => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            text: m.content ?? ''
+          }));
+          if (tab.id === activeTabId) renderLog();
+        }
+      } catch { /* the live socket remains usable if history cannot be loaded */ }
+    };
     ws.onclose = () => {
       tab.connected = false;
       if (tab.id === activeTabId) setStatus('disconnected — retrying…', 'error');
@@ -259,12 +273,22 @@
     };
   }
 
-  function createTab(label) {
-    const id = newSessionId();
+  function persistTabs() {
+    try {
+      localStorage.setItem('jl-engine-tabs', JSON.stringify({
+        ids: [...tabs.keys()],
+        active: activeTabId
+      }));
+    } catch { /* storage may be unavailable; sessions still work for this page */ }
+  }
+
+  function createTab(label, existingId = null) {
+    const id = existingId || newSessionId();
     const tab = { id, label: label || 'New Tab', ws: null, connected: false, messages: [], unread: false };
     tabs.set(id, tab);
     connectTabWs(tab);
     switchTab(id);
+    persistTabs();
     return tab;
   }
 
@@ -276,6 +300,7 @@
     if (tabs.size === 0) { createTab('SparkByte'); return; }
     if (activeTabId === id) switchTab([...tabs.keys()][0]);
     else renderTabBar();
+    persistTabs();
   }
 
   function switchTab(id) {
@@ -283,6 +308,7 @@
     if (!tab) return;
     activeTabId = id;
     tab.unread = false;
+    persistTabs();
     renderTabBar();
     renderLog();
     setStatus(tab.connected ? 'connected' : 'connecting…', tab.connected ? 'connected' : '');
@@ -662,9 +688,16 @@
     }
   }
 
-  // --- Boot: one initial tab, its label self-corrects once loadAgents() runs ---
-  createTab('SparkByte');
-  addMsg('system', 'Connected to JL Engine. Say hello.');
+  // --- Boot: restore the user's open conversation tabs across page reloads ---
+  let savedTabs = null;
+  try { savedTabs = JSON.parse(localStorage.getItem('jl-engine-tabs') || 'null'); } catch { /* ignore corrupt local state */ }
+  if (Array.isArray(savedTabs?.ids) && savedTabs.ids.length) {
+    for (const id of savedTabs.ids) {
+      if (typeof id === 'string' && id.length <= 128) createTab('SparkByte', id);
+    }
+    if (savedTabs.active && tabs.has(savedTabs.active)) switchTab(savedTabs.active);
+  }
+  if (tabs.size === 0) createTab('SparkByte');
 </script>
 </body>
 </html>
