@@ -1,4 +1,4 @@
-name: .NET 10 CI
+name: .NET 10 CI and Windows release
 
 on:
   push:
@@ -24,7 +24,23 @@ jobs:
         run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release --no-restore
       - name: Publish self-contained Windows build
         run: dotnet publish "JL_Engine now/dotnet/JLEngine.Host/JLEngine.Host.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/JLEngine-win-x64
-      - name: Upload build artifact
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $compiler)) { throw "Inno Setup compiler not found: $compiler" }
+          & $compiler "JL_Engine now/packaging/windows/JL-Engine.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: JL-Engine-Windows-Installer
+          path: artifacts/JL-Engine-Setup.exe
+          if-no-files-found: error
+      - name: Upload portable publish folder
         uses: actions/upload-artifact@v4
         with:
           name: JLEngine-win-x64
