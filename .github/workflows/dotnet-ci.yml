@@ -1,0 +1,32 @@
+name: .NET 10 CI
+
+on:
+  push:
+    branches: [master, "productize/**"]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore "JL_Engine now/dotnet/JLEngine.sln"
+      - name: Test
+        run: dotnet test "JL_Engine now/dotnet/JLEngine.sln" -c Release --no-restore
+      - name: Publish self-contained Windows build
+        run: dotnet publish "JL_Engine now/dotnet/JLEngine.Host/JLEngine.Host.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/JLEngine-win-x64
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JLEngine-win-x64
+          path: artifacts/JLEngine-win-x64/
+          if-no-files-found: error
