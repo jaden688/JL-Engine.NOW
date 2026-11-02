@@ -41,6 +41,32 @@ public class SparkByteDatabaseTests
     }
 
     [Fact]
+    public void ConversationHistory_RoundTripsPerSessionInInsertionOrder()
+    {
+        var path = NewDbPath();
+        using (var db = new SparkByteDatabase(path))
+        {
+            db.WriteConversationMessage("session-a", "user", "hello");
+            db.WriteConversationMessage("session-a", "assistant", "hi there");
+            db.WriteConversationMessage("session-b", "user", "separate conversation");
+
+            var history = db.ReadConversationHistory("session-a");
+            Assert.Equal(2, history.Count);
+            Assert.Equal("user", history[0]["role"]);
+            Assert.Equal("hello", history[0]["content"]);
+            Assert.Equal("assistant", history[1]["role"]);
+            Assert.Equal("hi there", history[1]["content"]);
+        }
+
+        // A new database connection represents a fresh engine process.
+        using var reopened = new SparkByteDatabase(path);
+        var restored = reopened.ReadConversationHistory("session-a");
+        Assert.Equal(2, restored.Count);
+        Assert.Equal("hi there", restored[1]["content"]);
+        Assert.Empty(reopened.ReadConversationHistory("unknown-session"));
+    }
+
+    [Fact]
     public void WriteThought_TruncatesContextAndThought_MatchingJuliaLimits()
     {
         using var db = new SparkByteDatabase(NewDbPath());
