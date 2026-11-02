@@ -18,7 +18,7 @@ public class SparkByteDatabaseTests
     }
 
     [Fact]
-    public void EnsureCreated_IsIdempotent_AndCreatesAllTenCoreTables()
+    public void EnsureCreated_IsIdempotent_AndCreatesAllCoreTables()
     {
         var path = NewDbPath();
         using var db1 = new SparkByteDatabase(path);
@@ -28,7 +28,7 @@ public class SparkByteDatabaseTests
         [
             "memory", "tools", "thoughts", "knowledge", "agents",
             "behavior_states", "sessions", "web_cache", "tool_usage_log",
-            "telemetry", "turn_snapshots",
+            "telemetry", "turn_snapshots", "conversation_messages",
         ];
 
         foreach (var table in expectedTables)
