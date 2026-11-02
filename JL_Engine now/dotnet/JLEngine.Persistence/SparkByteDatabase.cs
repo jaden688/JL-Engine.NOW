@@ -81,6 +81,21 @@ public sealed class SparkByteDatabase : IDisposable
         return history;
     }
 
+    /// <summary>Persist a telemetry event using the same connection lock as every other database operation.</summary>
+    public void WriteTelemetryEvent(string timestamp, string sessionId, string eventName, string dataJson)
+    {
+        Try(() =>
+        {
+            using var cmd = Connection.CreateCommand();
+            cmd.CommandText = "INSERT INTO telemetry (timestamp, session_id, event, data_json) VALUES ($ts, $sid, $ev, $data)";
+            cmd.Parameters.AddWithValue("$ts", timestamp);
+            cmd.Parameters.AddWithValue("$sid", sessionId);
+            cmd.Parameters.AddWithValue("$ev", eventName);
+            cmd.Parameters.AddWithValue("$data", dataJson);
+            cmd.ExecuteNonQuery();
+        });
+    }
+
     public void WriteThought(string context, string thought, string mood, string gait, string agent = "SparkByte", string type = "diary", string model = "")
     {
         Try(() =>
