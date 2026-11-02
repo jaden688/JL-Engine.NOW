@@ -137,6 +137,26 @@ public static class RuntimeComposition
         return chat;
     }
 
+    private static IResult ConfigureOpenRouterKey(SetApiKeyRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.ApiKey) || req.ApiKey.Trim().Length < 12)
+            return Results.BadRequest(new { error = "Enter a valid OpenRouter API key." });
+
+        try
+        {
+            OpenRouterKeyStore.SetKey(req.ApiKey);
+            return Results.Ok(new { apiKeyConfigured = true });
+        }
+        catch (PlatformNotSupportedException ex)
+        {
+            return Results.Problem(ex.Message, statusCode: StatusCodes.Status501NotImplemented);
+        }
+        catch
+        {
+            return Results.Problem("The API key could not be stored securely.", statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
     /// <summary>Wires every HTTP/WS endpoint the GUI (and A2A/Autopilot,
     /// via their own fixed session) needs onto a WebApplication — shared
     /// between Runtime's standalone Program.cs and JLEngine.Host.</summary>
@@ -153,25 +173,7 @@ public static class RuntimeComposition
         app.MapGet("/api/setup/status", () =>
             Results.Ok(new { apiKeyConfigured = OpenRouterKeyStore.IsConfigured() }));
 
-        app.MapPost("/api/setup/key", (SetApiKeyRequest req) =>
-        {
-            if (string.IsNullOrWhiteSpace(req.ApiKey) || req.ApiKey.Trim().Length < 12)
-                return Results.BadRequest(new { error = "Enter a valid OpenRouter API key." });
-
-            try
-            {
-                OpenRouterKeyStore.SetKey(req.ApiKey);
-                return Results.Ok(new { apiKeyConfigured = true });
-            }
-            catch (PlatformNotSupportedException ex)
-            {
-                return Results.Problem(ex.Message, statusCode: StatusCodes.Status501NotImplemented);
-            }
-            catch
-            {
-                return Results.Problem("The API key could not be stored securely.", statusCode: StatusCodes.Status500InternalServerError);
-            }
-        });
+        app.MapPost("/api/setup/key", ConfigureOpenRouterKey);
 
         // Visible transcript for a session, used by the GUI when a saved tab
         // reconnects after a browser or engine restart.
