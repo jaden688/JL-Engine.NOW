@@ -1,4 +1,4 @@
-name: .NET 10 CI and Windows release
+name: .NET 11 CI and Windows release
 
 on:
   push:
@@ -16,13 +16,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install .NET 10 SDK
+      - name: Install .NET 11 RC3 SDK
         shell: pwsh
         run: |
           $installDir = Join-Path $env:RUNNER_TEMP "dotnet"
           $installer = Join-Path $env:RUNNER_TEMP "dotnet-install.ps1"
           Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installer
-          & $installer -Version 10.0.100 -Architecture x64 -InstallDir $installDir
+          & $installer -Version 11.0.100-rc.3 -Architecture x64 -InstallDir $installDir
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Content -Path $env:GITHUB_PATH -Value $installDir
           & (Join-Path $installDir "dotnet.exe") --info
@@ -37,13 +37,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install .NET 10 SDK
+      - name: Install .NET 11 RC3 SDK
         shell: pwsh
         run: |
           $installDir = Join-Path $env:RUNNER_TEMP "dotnet"
           $installer = Join-Path $env:RUNNER_TEMP "dotnet-install.ps1"
           Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile $installer
-          & $installer -Version 10.0.100 -Architecture x64 -InstallDir $installDir
+          & $installer -Version 11.0.100-rc.3 -Architecture x64 -InstallDir $installDir
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Content -Path $env:GITHUB_PATH -Value $installDir
           & (Join-Path $installDir "dotnet.exe") --info
