@@ -20,6 +20,16 @@
   #status.connected { color: #6fd08c; }
   #status.error { color: #e0716b; }
 
+  .setup-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(5, 7, 12, .82); }
+  .setup-overlay[hidden] { display: none; }
+  .setup-card { width: min(440px, 100%); padding: 24px; background: #1d2029; border: 1px solid #3556d6; border-radius: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
+  .setup-card h2 { margin: 0 0 8px; font-size: 20px; color: #9fb4ff; }
+  .setup-card p { color: #aeb4c3; font-size: 13px; line-height: 1.5; }
+  .setup-card label { display: block; margin: 16px 0 6px; color: #aeb4c3; font-size: 12px; }
+  .setup-card input { width: 100%; padding: 10px 12px; font-size: 14px; }
+  .setup-card button { margin-top: 14px; padding: 10px 16px; }
+  #setup-error { min-height: 18px; color: #e0716b; font-size: 12px; }
+
   #tab-bar { display: flex; align-items: flex-end; gap: 4px; padding: 6px 16px 0 16px; border-bottom: 1px solid #2a2d38; overflow-x: auto; }
   .tab {
     display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px 6px 0 0;
@@ -148,6 +158,16 @@
 </style>
 </head>
 <body>
+  <div id="setup-overlay" class="setup-overlay" hidden>
+    <form id="setup-form" class="setup-card">
+      <h2>Welcome to JL Engine</h2>
+      <p>Connect your OpenRouter account to start SparkByte. Your key is encrypted for this Windows user and stored locally. It is not added to chat history or telemetry.</p>
+      <label for="setup-api-key">OpenRouter API key</label>
+      <input id="setup-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-or-v1-…" required />
+      <div id="setup-error"></div>
+      <button class="primary" type="submit">Save key and continue</button>
+    </form>
+  </div>
   <header>
     <h1>JL Engine</h1>
     <span id="status">connecting…</span>
@@ -216,6 +236,40 @@
   const auxTitle = document.getElementById('aux-title');
   const auxBody = document.getElementById('aux-body');
 
+  const setupOverlay = document.getElementById('setup-overlay');
+  const setupForm = document.getElementById('setup-form');
+  const setupApiKey = document.getElementById('setup-api-key');
+  const setupError = document.getElementById('setup-error');
+
+  async function checkFirstRunSetup() {
+    try {
+      const res = await fetch('/api/setup/status');
+      const data = await res.json();
+      if (!data.apiKeyConfigured) setupOverlay.hidden = false;
+    } catch { /* server startup/reconnect handles availability */ }
+  }
+
+  setupForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    setupError.textContent = '';
+    const key = setupApiKey.value.trim();
+    if (!key) return;
+    try {
+      const res = await fetch('/api/setup/key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error || 'Could not save the key.');
+      setupApiKey.value = '';
+      setupOverlay.hidden = true;
+      addMsg('system', 'OpenRouter key saved securely. JL Engine is ready.');
+    } catch (error) {
+      setupError.textContent = error.message || 'Could not save the key.';
+    }
+  });
+
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
@@ -243,7 +297,25 @@
   function connectTabWs(tab) {
     const ws = new WebSocket(wsUrlFor(tab.id));
     tab.ws = ws;
-    ws.onopen = () => { tab.connected = true; if (tab.id === activeTabId) setStatus('connected', 'connected'); };
+    ws.onopen = async () => {
+      tab.connected = true;
+      if (tab.id === activeTabId) setStatus('connected', 'connected');
+      const liveMessageStart = tab.messages.length;
+      try {
+        const res = await fetch('/api/history?session=' + encodeURIComponent(tab.id));
+        if (res.ok && tabs.has(tab.id)) {
+          const data = await res.json();
+          const restored = (data.messages || []).map(m => ({
+            role: m.role === 'assistant' ? 'agent' : m.role,
+            text: m.content ?? ''
+          }));
+          // Preserve any live replies that arrived while the history request
+          // was in flight instead of overwriting them with the older snapshot.
+          tab.messages = restored.concat(tab.messages.slice(liveMessageStart));
+          if (tab.id === activeTabId) renderLog();
+        }
+      } catch { /* the live socket remains usable if history cannot be loaded */ }
+    };
     ws.onclose = () => {
       tab.connected = false;
       if (tab.id === activeTabId) setStatus('disconnected — retrying…', 'error');
@@ -259,12 +331,22 @@
     };
   }
 
-  function createTab(label) {
-    const id = newSessionId();
+  function persistTabs() {
+    try {
+      localStorage.setItem('jl-engine-tabs', JSON.stringify({
+        ids: [...tabs.keys()],
+        active: activeTabId
+      }));
+    } catch { /* storage may be unavailable; sessions still work for this page */ }
+  }
+
+  function createTab(label, existingId = null) {
+    const id = existingId || newSessionId();
     const tab = { id, label: label || 'New Tab', ws: null, connected: false, messages: [], unread: false };
     tabs.set(id, tab);
     connectTabWs(tab);
     switchTab(id);
+    persistTabs();
     return tab;
   }
 
@@ -276,6 +358,7 @@
     if (tabs.size === 0) { createTab('SparkByte'); return; }
     if (activeTabId === id) switchTab([...tabs.keys()][0]);
     else renderTabBar();
+    persistTabs();
   }
 
   function switchTab(id) {
@@ -283,6 +366,7 @@
     if (!tab) return;
     activeTabId = id;
     tab.unread = false;
+    persistTabs();
     renderTabBar();
     renderLog();
     setStatus(tab.connected ? 'connected' : 'connecting…', tab.connected ? 'connected' : '');
@@ -662,9 +746,18 @@
     }
   }
 
-  // --- Boot: one initial tab, its label self-corrects once loadAgents() runs ---
-  createTab('SparkByte');
-  addMsg('system', 'Connected to JL Engine. Say hello.');
+  checkFirstRunSetup();
+
+  // --- Boot: restore the user's open conversation tabs across page reloads ---
+  let savedTabs = null;
+  try { savedTabs = JSON.parse(localStorage.getItem('jl-engine-tabs') || 'null'); } catch { /* ignore corrupt local state */ }
+  if (Array.isArray(savedTabs?.ids) && savedTabs.ids.length) {
+    for (const id of savedTabs.ids) {
+      if (typeof id === 'string' && id.length <= 128) createTab('SparkByte', id);
+    }
+    if (savedTabs.active && tabs.has(savedTabs.active)) switchTab(savedTabs.active);
+  }
+  if (tabs.size === 0) createTab('SparkByte');
 </script>
 </body>
 </html>

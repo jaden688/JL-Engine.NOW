@@ -13,6 +13,7 @@ namespace JLEngine.Persistence;
 public sealed class SparkByteDatabase : IDisposable
 {
     public SqliteConnection Connection { get; }
+    private readonly object _sync = new();
 
     public SparkByteDatabase(string dbPath)
     {
@@ -26,6 +27,73 @@ public sealed class SparkByteDatabase : IDisposable
     {
         text ??= "";
         return text.Length <= max ? text : text[..max];
+    }
+
+    /// <summary>Persist one visible chat message. Message content is stored
+    /// verbatim so a session can be reconstructed after the process exits.</summary>
+    public void WriteConversationMessage(string sessionId, string role, string content)
+    {
+        Try(() =>
+        {
+            using var cmd = Connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO conversation_messages (session_id, role, content, created_at)
+                VALUES ($sid, $role, $content, $created)
+                """;
+            cmd.Parameters.AddWithValue("$sid", sessionId);
+            cmd.Parameters.AddWithValue("$role", role);
+            cmd.Parameters.AddWithValue("$content", content);
+            cmd.Parameters.AddWithValue("$created", DateTime.UtcNow.ToString("O"));
+            cmd.ExecuteNonQuery();
+        });
+    }
+
+    /// <summary>Restore the visible transcript in insertion order for one
+    /// session. Returns an empty history when no messages have been saved.</summary>
+    public List<Dictionary<string, object?>> ReadConversationHistory(string sessionId)
+    {
+        var history = new List<Dictionary<string, object?>>();
+        lock (_sync)
+        {
+            try
+            {
+                using var cmd = Connection.CreateCommand();
+                cmd.CommandText = """
+                    SELECT role, content FROM conversation_messages
+                    WHERE session_id = $sid ORDER BY id
+                    """;
+                cmd.Parameters.AddWithValue("$sid", sessionId);
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    history.Add(new Dictionary<string, object?>
+                    {
+                        ["role"] = reader.GetString(0),
+                        ["content"] = reader.GetString(1),
+                    });
+                }
+            }
+            catch
+            {
+                // A transcript read failure must not prevent the engine from starting.
+            }
+        }
+        return history;
+    }
+
+    /// <summary>Persist a telemetry event using the same connection lock as every other database operation.</summary>
+    public void WriteTelemetryEvent(string timestamp, string sessionId, string eventName, string dataJson)
+    {
+        Try(() =>
+        {
+            using var cmd = Connection.CreateCommand();
+            cmd.CommandText = "INSERT INTO telemetry (timestamp, session_id, event, data_json) VALUES ($ts, $sid, $ev, $data)";
+            cmd.Parameters.AddWithValue("$ts", timestamp);
+            cmd.Parameters.AddWithValue("$sid", sessionId);
+            cmd.Parameters.AddWithValue("$ev", eventName);
+            cmd.Parameters.AddWithValue("$data", dataJson);
+            cmd.ExecuteNonQuery();
+        });
     }
 
     public void WriteThought(string context, string thought, string mood, string gait, string agent = "SparkByte", string type = "diary", string model = "")
@@ -226,13 +294,16 @@ public sealed class SparkByteDatabase : IDisposable
 
     private static void Try(Action action)
     {
-        try
+        lock (_sync)
         {
-            action();
-        }
-        catch
-        {
-            // Persistence writes must never break the caller's actual turn/tool-call.
+            try
+            {
+                action();
+            }
+            catch
+            {
+                // Persistence writes must never break the caller's actual turn/tool-call.
+            }
         }
     }
 

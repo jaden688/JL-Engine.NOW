@@ -6,7 +6,7 @@ namespace JLEngine.Persistence;
 /// Port of `_open_memory_db`'s CREATE TABLE statements (src/App.jl:60-116)
 /// and the index list (src/App.jl:291-304). Exact column-for-column match
 /// with the live sparkbyte_memory.db schema confirmed via direct sqlite3
-/// inspection. Covers the 10 core tables; the 4 A2A-specific tables
+/// inspection. Covers the core tables, including durable chat transcripts; the 4 A2A-specific tables
 /// (a2a_tasks, a2a_push_notification_configs, a2a_accounts, a2a_usage_ledger)
 /// are deferred to Phase 4 along with the A2A server itself.
 ///
@@ -74,6 +74,15 @@ public static class SparkByteSchema
         """,
 
         """
+        CREATE TABLE IF NOT EXISTS conversation_messages (
+            id INTEGER PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL)
+        """,
+
+        """
         CREATE TABLE IF NOT EXISTS turn_snapshots (
             id INTEGER PRIMARY KEY,
             timestamp TEXT,
@@ -115,6 +124,7 @@ public static class SparkByteSchema
         "CREATE INDEX IF NOT EXISTS idx_thoughts_type ON thoughts(type)",
         "CREATE INDEX IF NOT EXISTS idx_thoughts_agent ON thoughts(agent)",
         "CREATE INDEX IF NOT EXISTS idx_tool_usage_name ON tool_usage_log(tool_name)",
+        "CREATE INDEX IF NOT EXISTS idx_conversation_messages_session ON conversation_messages(session_id, id)",
     ];
 
     public static void EnsureCreated(SqliteConnection db)
